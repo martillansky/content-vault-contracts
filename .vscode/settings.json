@@ -1,0 +1,11 @@
+{
+    "foundry.solcVersion": "0.8.22",
+    "foundry.src": "src",
+    "foundry.out": "out",
+    "foundry.libs": ["lib"],
+    "solidity.defaultConfig": {
+        "compilerPath": "forge",
+        "compilerArgs": ["build"],
+        "solcVersion": "0.8.22"
+    }
+} 
