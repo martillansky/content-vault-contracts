@@ -52,9 +52,33 @@ A tokenized, permissioned content vault system built on **ERC1155** and **EIP-71
 ### ✅ Testing & Coverage
 
 - Comprehensive test suite using Foundry
-- Minimum 90% code coverage requirement
+- Current coverage metrics:
+  - Lines: 78.68% (107/136)
+  - Statements: 74.27% (127/171)
+  - Branches: 48.78% (20/41)
+  - Functions: 73.91% (17/23)
 - Coverage reports generated in CI pipeline
 - Gas optimization tracking via `.gas-snapshot`
+
+### ✅ Error Handling
+
+The contract implements custom errors for better gas efficiency and clearer error messages:
+
+| Error Selector             | Description                                               |
+| -------------------------- | --------------------------------------------------------- |
+| `ZeroAddress`              | Attempted to use the zero address                         |
+| `VaultDoesNotExist`        | Operation on a non-existent vault                         |
+| `VaultAlreadyExists`       | Attempted to create a vault that already exists           |
+| `NoWritePermission`        | Operation requiring write permission attempted without it |
+| `InvalidPermission`        | Attempted to grant an invalid permission value            |
+| `InvalidIPFSHash`          | Provided IPFS hash is invalid                             |
+| `InvalidSchema`            | Schema validation failed                                  |
+| `CannotRevokeAccessToSelf` | Attempted to revoke own access                            |
+| `AlreadyHasToken`          | User already has access to the vault                      |
+| `InvalidUpgrade`           | Invalid permission upgrade attempt                        |
+| `InvalidNonce`             | Invalid nonce in signature verification                   |
+| `SignatureExpired`         | Signature past its deadline                               |
+| `InvalidSignature`         | Signature verification failed                             |
 
 ---
 
@@ -141,12 +165,13 @@ yarn test:gas:diff # Show gas differences
 yarn build        # Build the project
 yarn fmt         # Format code
 yarn fmt:check   # Check formatting
-yarn lint        # Run linting (format + build)
 yarn clean       # Clean build artifacts
 
-# Deployment (requires RPC_URL environment variable)
-# Example: RPC_URL=https://eth-mainnet.g.alchemy.com/v2/your-api-key yarn deploy
-yarn deploy      # Deploy to network
+# Deployment and Verification
+yarn deploy:sepolia  # Deploy to Sepolia
+yarn deploy:mainnet # Deploy to Mainnet
+yarn verify:sepolia # Verify on Sepolia
+yarn verify:mainnet # Verify on Mainnet
 ```
 
 ### Direct Forge Commands
@@ -155,7 +180,7 @@ You can also run Forge commands directly:
 
 ```bash
 forge test -vvv
-forge test -vvv --coverage
+forge coverage
 forge snapshot
 forge build
 forge fmt
@@ -194,41 +219,36 @@ Create a `.env` file in the root directory:
 
 ```bash
 # Network RPC URLs
-RPC_URL_MAINNET=https://eth-mainnet.g.alchemy.com/v2/your-api-key
 RPC_URL_SEPOLIA=https://eth-sepolia.g.alchemy.com/v2/your-api-key
+RPC_URL_MAINNET=https://eth-mainnet.g.alchemy.com/v2/your-api-key
 
-# Deployer private key (without 0x prefix)
+# Contract addresses (after deployment)
+VAULT_ADDRESS_SEPOLIA=0x...
+VAULT_ADDRESS_MAINNET=0x...
+
+# Etherscan API key for verification
+ETHERSCAN_API_KEY=your_etherscan_api_key
+
+# Deployer private key
 PRIVATE_KEY=your_private_key_here
 ```
 
-### Deployment Commands
+### Deployment and Verification
 
-Deploy to different networks using:
-
-```bash
-# Deploy to Sepolia testnet
-forge script script/Vault.s.sol:VaultScript --rpc-url $RPC_URL_SEPOLIA --broadcast
-
-# Deploy to mainnet
-forge script script/Vault.s.sol:VaultScript --rpc-url $RPC_URL_MAINNET --broadcast
-```
-
-Or using yarn:
+Deploy and verify using yarn commands:
 
 ```bash
 # Deploy to Sepolia testnet
-RPC_URL=$RPC_URL_SEPOLIA yarn deploy
+yarn deploy:sepolia
 
 # Deploy to mainnet
-RPC_URL=$RPC_URL_MAINNET yarn deploy
-```
+yarn deploy:mainnet
 
-### Verification
+# Verify on Sepolia
+yarn verify:sepolia
 
-After deployment, verify the contract on Etherscan:
-
-```bash
-forge verify-contract <DEPLOYED_ADDRESS> Vault --chain-id <CHAIN_ID>
+# Verify on mainnet
+yarn verify:mainnet
 ```
 
 ---

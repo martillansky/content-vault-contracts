@@ -11,7 +11,14 @@
         "fmt": "forge fmt",
         "fmt:check": "forge fmt --check",
         "clean": "forge clean",
-        "deploy": "forge script script/Vault.s.sol:VaultScript --rpc-url $RPC_URL --broadcast"
+        "deploy:sepolia": "dotenv -- cross-var forge script script/Vault.s.sol:VaultScript --fork-url %RPC_URL_SEPOLIA% --broadcast",
+        "deploy:mainnet": "dotenv -- cross-var forge script script/Vault.s.sol:VaultScript --fork-url %RPC_URL_MAINNET% --broadcast",
+        "verify:sepolia": "dotenv -- cross-var forge verify-contract --chain-id 11155111 %VAULT_ADDRESS_SEPOLIA% src/Vault.sol:Vault --etherscan-api-key %ETHERSCAN_API_KEY%",
+        "verify:mainnet": "dotenv -- cross-var forge verify-contract --chain-id 1 %VAULT_ADDRESS_MAINNET% script/Vault.s.sol:Vault --etherscan-api-key %ETHERSCAN_API_KEY%"
+    },
+    "dependencies": {
+        "cross-var": "^1.1.0",
+        "dotenv-cli": "^3.0.0"
     },
     "keywords": [
         "ethereum",
