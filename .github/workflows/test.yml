@@ -39,7 +39,7 @@ jobs:
 
       - name: Run Forge tests with coverage
         run: |
-          forge test -vvv --coverage
+          forge coverage
           forge coverage report
         id: test
 
