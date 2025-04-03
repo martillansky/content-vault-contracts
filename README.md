@@ -174,18 +174,6 @@ yarn verify:sepolia # Verify on Sepolia
 yarn verify:mainnet # Verify on Mainnet
 ```
 
-### Direct Forge Commands
-
-You can also run Forge commands directly:
-
-```bash
-forge test -vvv
-forge coverage
-forge snapshot
-forge build
-forge fmt
-```
-
 ---
 
 ## ✅ Pre-Push Checklist
@@ -274,7 +262,7 @@ See the [LICENSE](./LICENSE) file for more details.
 
 This project uses [Foundry](https://book.getfoundry.sh/) for Solidity development.
 
-Run commands:
+You can also run Forge commands directly:
 
 ```bash
 forge build         # compile
