@@ -4,6 +4,12 @@ A tokenized, permissioned content vault system built on **ERC1155** and **EIP-71
 
 ---
 
+## 👤 Author
+
+- [Martin Moguillansky](https://github.com/martillansky)
+
+---
+
 ## 🌟 Objectives
 
 - **Token-Gated Storage**: Each vault is represented by an ERC1155 token (`tokenId`). Ownership grants access.
