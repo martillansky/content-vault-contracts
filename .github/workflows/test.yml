@@ -44,7 +44,7 @@ jobs:
         id: test
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@cd9bcb6b1e1b032a0dc6486d9dfabe9c6db2751d
+        uses: actions/upload-artifact@v3
         with:
           name: coverage-report
           path: coverage/
