@@ -37,7 +37,15 @@ jobs:
           forge build --sizes
         id: build
 
-      - name: Run Forge tests
+      - name: Run Forge tests with coverage
         run: |
-          forge test -vvv
+          forge test -vvv --coverage
+          forge coverage report
         id: test
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14

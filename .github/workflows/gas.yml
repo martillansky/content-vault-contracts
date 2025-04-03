@@ -1,0 +1,38 @@
+name: Gas Snapshot
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  snapshot:
+    name: Check Gas Snapshots
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Run gas snapshot
+        run: |
+          forge snapshot
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            forge snapshot --diff
+          fi
+
+      - name: Check for gas snapshot changes
+        run: |
+          if ! git diff --exit-code .gas-snapshot; then
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              echo "::warning::Gas snapshot changed. Review the gas report above."
+            else
+              echo "::error::Gas snapshot changed. Review and commit the updated .gas-snapshot."
+              exit 1;
+            fi
+          fi

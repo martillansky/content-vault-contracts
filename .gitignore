@@ -15,3 +15,17 @@ docs/
 
 # Dotenv file
 .env
+
+# Coverage reports
+coverage/
+coverage.json
+
+# IDE files
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db

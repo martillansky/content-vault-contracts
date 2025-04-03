@@ -1,18 +1,18 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+// SPDX-License-Identifier: Elastic-2.0
+pragma solidity ^0.8.22;
 
-import {Script, console} from "forge-std/Script.sol";
+import {Script} from "forge-std/Script.sol";
 import {Vault} from "../src/Vault.sol";
 
+/// @dev Deploys the Vault contract to the selected network.
 contract VaultScript is Script {
-    Vault public vault;
-
     function setUp() public {}
 
     function run() public {
-        vm.startBroadcast();
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        vm.startBroadcast(deployerPrivateKey);
 
-        vault = new Vault();
+        Vault vault = new Vault();
 
         vm.stopBroadcast();
     }
