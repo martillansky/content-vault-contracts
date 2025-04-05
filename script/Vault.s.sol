@@ -12,7 +12,7 @@ contract VaultScript is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        Vault vault = new Vault();
+        new Vault();
 
         vm.stopBroadcast();
     }

@@ -53,10 +53,10 @@ A tokenized, permissioned content vault system built on **ERC1155** and **EIP-71
 
 - Comprehensive test suite using Foundry
 - Current coverage metrics:
-  - Lines: 78.68% (107/136)
-  - Statements: 74.27% (127/171)
-  - Branches: 48.78% (20/41)
-  - Functions: 73.91% (17/23)
+  - Lines: 58.33% (91/156)
+  - Statements: 56.61% (107/189)
+  - Branches: 46.81% (22/47)
+  - Functions: 66.67% (16/24)
 - Coverage reports generated in CI pipeline
 - Gas optimization tracking via `.gas-snapshot`
 
@@ -79,22 +79,32 @@ The contract implements custom errors for better gas efficiency and clearer erro
 | `InvalidNonce`             | Invalid nonce in signature verification                   |
 | `SignatureExpired`         | Signature past its deadline                               |
 | `InvalidSignature`         | Signature verification failed                             |
+| `NotVaultOwner`            | Operation attempted by non-owner                          |
+| `NoAccessToRevoke`         | Attempted to revoke access from user without access       |
+| `InvalidSchemaIndex`       | Invalid schema index provided                             |
+| `MismatchedArrayLengths`   | Array length mismatch in batch operations                 |
+| `EmptyArray`               | Empty array provided for batch operations                 |
 
 ---
 
 ## 🔐 Key Functions
 
-| Function                               | Description                                                |
-| -------------------------------------- | ---------------------------------------------------------- |
-| `createVault(tokenId)`                 | Mints a new vault using the current schema.                |
-| `grantAccess(to, tokenId, permission)` | Grants direct access by the vault owner.                   |
-| `grantAccessWithSignature(...)`        | EIP-712-based gasless access granting via signed messages. |
-| `revokeAccess(tokenId, to)`            | Revokes access and burns token from `to`.                  |
-| `upgradePermission(tokenId, user)`     | Upgrades `READ` to `WRITE` for a user.                     |
-| `storeContentWithMetadata(...)`        | Stores a content hash + metadata in the vault.             |
-| `storeContentBatch(...)`               | Batched version for gas optimization.                      |
-| `deprecateSchema(index)`               | Marks a schema as deprecated.                              |
-| `setURI(newUri)`                       | Updates ERC1155 base metadata URI.                         |
+| Function                                    | Description                                                |
+| ------------------------------------------- | ---------------------------------------------------------- |
+| `createVault(tokenId)`                      | Mints a new vault using the current schema.                |
+| `grantAccess(to, tokenId, permission)`      | Grants direct access by the vault owner.                   |
+| `grantAccessWithSignature(...)`             | EIP-712-based gasless access granting via signed messages. |
+| `revokeAccess(tokenId, to)`                 | Revokes access and burns token from `to`.                  |
+| `upgradePermission(tokenId, user)`          | Upgrades `READ` to `WRITE` for a user.                     |
+| `storeContentWithMetadata(...)`             | Stores a content hash + metadata in the vault.             |
+| `storeContentBatch(...)`                    | Batched version for gas optimization.                      |
+| `deprecateSchema(index)`                    | Marks a schema as deprecated.                              |
+| `setURI(newUri)`                            | Updates ERC1155 base metadata URI.                         |
+| `transferVaultOwnership(tokenId, newOwner)` | Transfers vault ownership to a new address.                |
+| `updateSchema(index, newHash)`              | Updates an existing schema with a new hash.                |
+| `getCurrentSchema()`                        | Returns the current active schema hash.                    |
+| `getSchema(index)`                          | Returns a specific schema hash by index.                   |
+| `getNonce(owner)`                           | Returns the current nonce for an address.                  |
 
 ---
 
@@ -130,7 +140,9 @@ await vault.grantAccessWithSignature(user, 1, 2, message.deadline, signature);
 ### Store Content
 
 ```solidity
-vault.storeContentWithMetadata(1, "ipfs://Qm...", '{"title":"example"}');
+const cidHash = ethers.keccak256(abi.encodePacked(cid, salt, userAddress));
+const metadataHash = ethers.keccak256(abi.encodePacked('{"title": "example"}'));
+vault.storeContentWithMetadata(1, cidHash, metadataHash);
 ```
 
 ### Store Batch Content
@@ -139,10 +151,89 @@ vault.storeContentWithMetadata(1, "ipfs://Qm...", '{"title":"example"}');
 string[] memory hashes = new string[](3);
 string[] memory metas = new string[](3);
 for (uint256 i = 0; i < 3; i++) {
-    hashes[i] = "ipfs://Qm...";
-    metas[i] = '{"title":"example"}';
+    hashes[i] = ethers.keccak256(abi.encodePacked(cid, salt, userAddress));
+    metas[i] = ethers.keccak256(ethers.toUtf8Bytes(metadata));
 }
 vault.storeContentBatch(1, hashes, metas);
+```
+
+### Store Content with Signature (EIP-712)
+
+```typescript
+const cidHash = ethers.keccak256(abi.encodePacked(cid, salt, userAddress));
+
+const domain = {
+  name: "Vault",
+  version: "1",
+  chainId: 11155111, // Sepolia
+  verifyingContract: "0xYourVaultContractAddress",
+};
+
+const types = {
+  MetadataHash: [
+    { name: "metadataHash", type: "bytes32" },
+    { name: "tokenId", type: "uint256" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+};
+
+const value = {
+  metadataHash: ethers.keccak256(ethers.toUtf8Bytes(metadata)),
+  tokenId: 1,
+  nonce: await vault.getNonce(userAddress),
+  deadline: Math.floor(Date.now() / 1000) + 3600, // 1h from now
+};
+
+const signature = await signer._signTypedData(domain, types, value);
+vault.storeContentWithMetadataSignature(1, cidHash, signature);
+```
+
+### Store Content Batch with Signature (EIP-712)
+
+```typescript
+const metadataHashes: string[] = [
+  ethers.utils.keccak256(ethers.utils.toUtf8Bytes('{"title":"A"}')),
+  ethers.utils.keccak256(ethers.utils.toUtf8Bytes('{"title":"B"}')),
+];
+
+const domain = {
+  name: "Vault",
+  version: "1",
+  chainId: 11155111,
+  verifyingContract: "0xYourVaultContractAddress",
+};
+
+const types = {
+  MetadataArrayHash: [
+    { name: "metadataHashes", type: "bytes32[]" },
+    { name: "tokenId", type: "uint256" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+};
+
+const value = {
+  metadataHashes: metadataHashes,
+  tokenId: 1,
+  nonce: await vault.getNonce(userAddress),
+  deadline: Math.floor(Date.now() / 1000) + 3600,
+};
+
+const signature = await signer._signTypedData(domain, types, value);
+vault.storeContentBatchWithSignature(1, cidHashes, signature);
+```
+
+### Transfer Vault Ownership
+
+```solidity
+vault.transferVaultOwnership(1, newOwner);
+```
+
+### Update Schema
+
+```solidity
+vault.updateSchema(1, newSchemaHash);
 ```
 
 ---

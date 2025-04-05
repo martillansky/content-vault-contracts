@@ -13,7 +13,7 @@ contract VaultGasTest is Test {
     function setUp() public {
         vault = new Vault();
         vm.prank(vault.owner());
-        vault.setSchema("ipfs://QmTestSchemaHash123456789");
+        vault.setSchema(keccak256("QmWATWQ7fVPP2EFGu71UkfnqhYXDYH566qy47CnJDgvs8u"));
         vm.prank(user);
         vault.createVault(1);
     }
@@ -29,7 +29,14 @@ contract VaultGasTest is Test {
         uint256 deadline = block.timestamp + 1 hours;
 
         bytes32 structHash = keccak256(
-            abi.encode(vault.PERMISSION_GRANT_TYPEHASH(), target, 1, vault.PERMISSION_WRITE(), nonce, deadline)
+            abi.encode(
+                keccak256("PermissionGrant(address to,uint256 tokenId,uint8 permission,uint256 nonce,uint256 deadline)"),
+                target,
+                1,
+                vault.PERMISSION_WRITE(),
+                nonce,
+                deadline
+            )
         );
 
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", vault.DOMAIN_SEPARATOR(), structHash));
@@ -47,7 +54,11 @@ contract VaultGasTest is Test {
         vm.stopPrank();
 
         vm.prank(target);
-        vault.storeContentWithMetadata(1, "ipfs://QmTestContentHash123456789", '{"title":"test"}');
+        vault.storeContentWithMetadata(
+            1,
+            keccak256("k51qzi5uqu5dh9ihj9u2k5zk8ygjk3l5mh7akbt8b6medi77r5w55g4rg8chx3"),
+            keccak256('{"title":"test"}')
+        );
     }
 
     function testGasBatchStoreContent() public {
@@ -55,11 +66,17 @@ contract VaultGasTest is Test {
         vault.grantAccess(target, 1, vault.PERMISSION_WRITE());
         vm.stopPrank();
 
-        string[] memory hashes = new string[](3);
-        string[] memory metas = new string[](3);
+        bytes32[] memory hashes = new bytes32[](3);
+        bytes32[] memory metas = new bytes32[](3);
         for (uint256 i = 0; i < 3; i++) {
-            hashes[i] = "ipfs://QmTestContentHash123456789";
-            metas[i] = '{"title":"test"}';
+            if (i == 0) {
+                hashes[i] = keccak256("QmWATWQ7fVPP2EFGu71UkfnqhYXDYH566qy47CnJDgvs8u");
+            } else if (i == 1) {
+                hashes[i] = keccak256("bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi");
+            } else {
+                hashes[i] = keccak256("k51qzi5uqu5dh9ihj9u2k5zk8ygjk3l5mh7akbt8b6medi77r5w55g4rg8chx3");
+            }
+            metas[i] = keccak256('{"title":"test"}');
         }
 
         vm.prank(target);

@@ -3,7 +3,7 @@ cache/
 out/
 
 # Ignores development broadcast logs
-/broadcast/*
+broadcast/
 
 # Ignores libraries
 /lib/*
@@ -30,3 +30,6 @@ coverage.json
 # OS files
 .DS_Store
 Thumbs.db
+
+# JSON Templates
+json.templates/

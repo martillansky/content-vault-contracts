@@ -19,11 +19,6 @@ contract Vault is ERC1155, Ownable, EIP712 {
     uint8 public constant PERMISSION_READ = 1;
     uint8 public constant PERMISSION_WRITE = 2;
 
-    // IPFS hash prefix
-    string public constant IPFS_PREFIX_STRING = "ipfs://";
-    bytes32 public constant IPFS_PREFIX = keccak256(abi.encodePacked(IPFS_PREFIX_STRING));
-    bytes32 public constant IPFS_CID_PREFIX = keccak256(abi.encodePacked("Qm"));
-
     // EIP-712 Domain struct
     struct EIP712Domain {
         string name;
@@ -42,8 +37,8 @@ contract Vault is ERC1155, Ownable, EIP712 {
     //        Schema Handling        //
     // ----------------------------- //
 
-    // Mapping of schemas: schemaIndex -> IPFS hash
-    mapping(uint256 => string) public schemaHashes;
+    // Mapping of schemas: schemaIndex -> CID hash to the JSON schema
+    mapping(uint256 => bytes32) public schemaHashes;
 
     // Mapping of deprecated schemas: schemaIndex -> bool
     mapping(uint256 => bool) public deprecatedSchemas;
@@ -54,9 +49,9 @@ contract Vault is ERC1155, Ownable, EIP712 {
     // Mapping of nonces: address -> nonce
     mapping(address => uint256) public nonces;
 
-    event SchemaSet(uint256 indexed index, string ipfsHash);
-    event SchemaDeprecated(uint256 indexed index, string ipfsHash);
-    event SchemaUpdated(uint256 indexed index, string oldHash, string newHash);
+    event SchemaSet(uint256 indexed index, bytes32 schemaHash);
+    event SchemaDeprecated(uint256 indexed index, bytes32 schemaHash);
+    event SchemaUpdated(uint256 indexed index, bytes32 oldHash, bytes32 newHash);
 
     /// @notice Gets the current nonce for an address
     /// @param owner The address to check
@@ -66,23 +61,21 @@ contract Vault is ERC1155, Ownable, EIP712 {
     }
 
     /// @notice Sets a new schema for content validation
-    /// @param ipfsHash The IPFS hash of the JSON schema
-    function setSchema(string memory ipfsHash) external onlyOwner {
-        if (!isValidIPFSHash(ipfsHash)) revert InvalidSchema();
+    /// @param schemaHash The CID hash of the JSON schema
+    function setSchema(bytes32 schemaHash) external onlyOwner {
         lastSchemaIndex++;
-        schemaHashes[lastSchemaIndex] = ipfsHash;
-        emit SchemaSet(lastSchemaIndex, ipfsHash);
+        schemaHashes[lastSchemaIndex] = schemaHash;
+        emit SchemaSet(lastSchemaIndex, schemaHash);
     }
 
     /// @notice Updates an existing schema
-    /// @param index The index of the schema to update
-    /// @param newHash The new IPFS hash of the JSON schema
-    function updateSchema(uint256 index, string memory newHash) external onlyOwner {
+    /// @param index The index of the schema hash to update
+    /// @param newHash The new CID hash of the JSON schema
+    function updateSchema(uint256 index, bytes32 newHash) external onlyOwner {
         if (index == 0 || index > lastSchemaIndex) revert InvalidSchemaIndex();
-        if (!isValidIPFSHash(newHash)) revert InvalidSchema();
         if (deprecatedSchemas[index]) revert InvalidSchema();
 
-        string memory oldHash = schemaHashes[index];
+        bytes32 oldHash = schemaHashes[index];
         schemaHashes[index] = newHash;
         emit SchemaUpdated(index, oldHash, newHash);
     }
@@ -98,14 +91,14 @@ contract Vault is ERC1155, Ownable, EIP712 {
     /// @notice Retrieves a schema by its index
     /// @param index The index of the schema to retrieve
     /// @return The IPFS hash of the schema
-    function getSchema(uint256 index) public view returns (string memory) {
+    function getSchema(uint256 index) public view returns (bytes32) {
         if (index == 0 || index > lastSchemaIndex) revert InvalidSchemaIndex();
         return schemaHashes[index];
     }
 
     /// @notice Gets the current active schema
     /// @return The IPFS hash of the current schema
-    function getCurrentSchema() public view returns (string memory) {
+    function getCurrentSchema() public view returns (bytes32) {
         return schemaHashes[lastSchemaIndex];
     }
 
@@ -119,14 +112,13 @@ contract Vault is ERC1155, Ownable, EIP712 {
     // Mapping of permissions: tokenId -> address -> permission
     mapping(uint256 => mapping(address => uint8)) public permissions;
 
-    event VaultCreated(uint256 indexed tokenId, address indexed owner, string schemaHash);
+    event VaultCreated(uint256 indexed tokenId, address indexed owner, bytes32 schemaHash);
     event VaultAccessGranted(address indexed to, uint256 indexed tokenId, uint8 permission);
     event VaultAccessRevoked(address indexed to, uint256 indexed tokenId);
     event PermissionUpgraded(address indexed user, uint256 indexed tokenId, uint8 newPermission);
     event ContentStoredWithMetadata(
-        address indexed sender, uint256 indexed tokenId, string schemaHash, string ipfsHash, string metadata
+        address indexed sender, uint256 indexed tokenId, bytes32 ipfsHash, bytes32 metadataHash
     );
-    event ContentBatchStored(address indexed sender, uint256 indexed tokenId, uint256 count);
     event VaultTransferred(uint256 indexed tokenId, address indexed from, address indexed to);
 
     error NotVaultOwner();
@@ -137,29 +129,33 @@ contract Vault is ERC1155, Ownable, EIP712 {
     error NoAccessToRevoke();
     error InvalidSchema();
     error InvalidSchemaIndex();
+    error MismatchedArrayLengths();
     error VaultDoesNotExist();
     error InvalidUpgrade();
     error InvalidSignature();
     error SignatureExpired();
     error ZeroAddress();
     error EmptyArray();
-    error InvalidIPFSHash();
 
-    bytes32 public constant PERMISSION_GRANT_TYPEHASH =
+    bytes32 internal constant METADATA_SIGNATURE_TYPEHASH =
+        keccak256("MetadataHash(bytes32 metadataHash,uint256 tokenId,uint256 nonce,uint256 deadline)");
+    bytes32 internal constant METADATA_ARRAY_SIGNATURE_TYPEHASH =
+        keccak256("MetadataArrayHash(bytes32[] metadataHashes,uint256 tokenId,uint256 nonce,uint256 deadline)");
+    bytes32 internal constant PERMISSION_GRANT_TYPEHASH =
         keccak256("PermissionGrant(address to,uint256 tokenId,uint8 permission,uint256 nonce,uint256 deadline)");
-    bytes32 public constant EIP712_DOMAIN_TYPEHASH =
+    bytes32 internal constant EIP712_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
     bytes32 public immutable DOMAIN_SEPARATOR;
 
-    EIP712Domain domain_separator_struct =
+    EIP712Domain private domain_separator_struct =
         EIP712Domain({name: "Vault", version: "1", chainId: block.chainid, verifyingContract: address(this)});
 
     constructor() ERC1155("") Ownable(msg.sender) EIP712("Vault", "1") {
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(
                 EIP712_DOMAIN_TYPEHASH,
-                keccak256(abi.encodePacked(domain_separator_struct.name)),
-                keccak256(abi.encodePacked(domain_separator_struct.version)),
+                keccak256(bytes(domain_separator_struct.name)),
+                keccak256(bytes(domain_separator_struct.version)),
                 domain_separator_struct.chainId,
                 domain_separator_struct.verifyingContract
             )
@@ -176,6 +172,7 @@ contract Vault is ERC1155, Ownable, EIP712 {
         _mint(msg.sender, tokenId, 1, "");
 
         vaults[tokenId] = VaultMetadata({owner: msg.sender, currentSchemaIndex: schemaIndex});
+        permissions[tokenId][msg.sender] = PERMISSION_WRITE;
 
         emit VaultCreated(tokenId, msg.sender, schemaHashes[schemaIndex]);
     }
@@ -302,47 +299,122 @@ contract Vault is ERC1155, Ownable, EIP712 {
 
     /// @notice Stores content with metadata in a vault
     /// @param tokenId The vault identifier
-    /// @param ipfsHash The IPFS hash of the content
-    /// @param metadata The metadata associated with the content
-    function storeContentWithMetadata(uint256 tokenId, string memory ipfsHash, string memory metadata) external {
+    /// @param cidHash The CID hash of the content
+    /// @param metadataHash The hash of the metadata associated with the content
+    function storeContentWithMetadata(uint256 tokenId, bytes32 cidHash, bytes32 metadataHash) external {
         if (deprecatedSchemas[vaults[tokenId].currentSchemaIndex]) {
             revert InvalidSchema();
         }
         if (permissions[tokenId][msg.sender] != PERMISSION_WRITE) {
             revert NoWritePermission();
         }
-        if (!isValidIPFSHash(ipfsHash)) revert InvalidIPFSHash();
-        if (bytes(metadata).length == 0) revert InvalidSchema();
-
-        emit ContentStoredWithMetadata(
-            msg.sender, tokenId, schemaHashes[vaults[tokenId].currentSchemaIndex], ipfsHash, metadata
-        );
+        emit ContentStoredWithMetadata(msg.sender, tokenId, cidHash, metadataHash);
     }
 
     /// @notice Stores multiple content items with metadata in a vault
     /// @param tokenId The vault identifier
-    /// @param ipfsHashes Array of IPFS hashes
-    /// @param metadatas Array of metadata strings
-    function storeContentBatch(uint256 tokenId, string[] memory ipfsHashes, string[] memory metadatas) external {
+    /// @param cidHashes Array of CID hashes
+    /// @param metadataHashes Array of metadata hashes
+    function storeContentBatch(uint256 tokenId, bytes32[] calldata cidHashes, bytes32[] memory metadataHashes)
+        external
+    {
         if (permissions[tokenId][msg.sender] != PERMISSION_WRITE) {
             revert NoWritePermission();
         }
-        if (ipfsHashes.length == 0 || metadatas.length == 0) {
+        if (cidHashes.length == 0 || metadataHashes.length == 0) {
             revert EmptyArray();
         }
-        if (ipfsHashes.length != metadatas.length) revert InvalidSchema();
-
-        uint256 schemaIndex = vaults[tokenId].currentSchemaIndex;
-        string memory schemaHash = schemaHashes[schemaIndex];
-
-        for (uint256 i = 0; i < ipfsHashes.length; ++i) {
-            if (!isValidIPFSHash(ipfsHashes[i])) revert InvalidIPFSHash();
-            if (bytes(metadatas[i]).length == 0) revert InvalidSchema();
-
-            emit ContentStoredWithMetadata(msg.sender, tokenId, schemaHash, ipfsHashes[i], metadatas[i]);
+        if (cidHashes.length != metadataHashes.length) {
+            revert MismatchedArrayLengths();
         }
 
-        emit ContentBatchStored(msg.sender, tokenId, ipfsHashes.length);
+        for (uint256 i = 0; i < cidHashes.length; ++i) {
+            emit ContentStoredWithMetadata(msg.sender, tokenId, cidHashes[i], metadataHashes[i]);
+        }
+    }
+
+    /// @notice Stores content with metadata and EIP-712 signature
+    /// @param tokenId The vault identifier
+    /// @param cidHash The (private) cid hash to the content
+    /// @param metadataHash The signed metadata hash associated with the content
+    /// @param deadline The deadline for the signature
+    /// @param signature The EIP-712 signature
+    function storeContentWithMetadataSigned(
+        uint256 tokenId,
+        bytes32 cidHash,
+        bytes32 metadataHash,
+        uint256 deadline,
+        bytes calldata signature
+    ) external {
+        if (deprecatedSchemas[vaults[tokenId].currentSchemaIndex]) {
+            revert InvalidSchema();
+        }
+        if (block.timestamp > deadline) revert SignatureExpired();
+
+        address owner = vaults[tokenId].owner;
+        if (owner == address(0)) revert VaultDoesNotExist();
+        if (permissions[tokenId][msg.sender] != PERMISSION_WRITE) {
+            revert NoWritePermission();
+        }
+
+        uint256 nonce = nonces[owner];
+
+        bytes32 structHash = keccak256(abi.encode(METADATA_SIGNATURE_TYPEHASH, metadataHash, tokenId, nonce, deadline));
+
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
+        address signer = ECDSA.recover(digest, signature);
+        if (signer != owner) revert InvalidSignature();
+
+        nonces[owner]++;
+
+        emit ContentStoredWithMetadata(msg.sender, tokenId, cidHash, metadataHash);
+    }
+
+    /// @notice Stores content with metadata and EIP-712 signature
+    /// @param tokenId The vault identifier
+    /// @param cidHashes The (private) cid hashes to the contents
+    /// @param metadataHashes The signed metadata hashes associated with the contents
+    /// @param deadline The deadline for the signature
+    /// @param signature The EIP-712 signature
+    function storeContentBatchWithSignature(
+        uint256 tokenId,
+        bytes32[] calldata cidHashes,
+        bytes32[] calldata metadataHashes,
+        uint256 deadline,
+        bytes calldata signature
+    ) external {
+        if (deprecatedSchemas[vaults[tokenId].currentSchemaIndex]) {
+            revert InvalidSchema();
+        }
+        if (block.timestamp > deadline) revert SignatureExpired();
+        address owner = vaults[tokenId].owner;
+        if (owner == address(0)) revert VaultDoesNotExist();
+        if (permissions[tokenId][msg.sender] != PERMISSION_WRITE) {
+            revert NoWritePermission();
+        }
+        if (cidHashes.length == 0 || metadataHashes.length == 0) {
+            revert EmptyArray();
+        }
+        if (cidHashes.length != metadataHashes.length) {
+            revert MismatchedArrayLengths();
+        }
+
+        // Create a digest of the full batch for EIP-712 signature
+        uint256 nonce = nonces[owner];
+
+        bytes32 structHash =
+            keccak256(abi.encode(METADATA_ARRAY_SIGNATURE_TYPEHASH, metadataHashes, tokenId, nonce, deadline));
+
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
+        address signer = ECDSA.recover(digest, signature);
+        if (signer != owner) revert InvalidSignature();
+
+        nonces[owner]++;
+
+        // Store content events (CID left empty or hashed elsewhere)
+        for (uint256 i = 0; i < metadataHashes.length; i++) {
+            emit ContentStoredWithMetadata(msg.sender, tokenId, cidHashes[i], metadataHashes[i]);
+        }
     }
 
     // ----------------------------- //
@@ -387,26 +459,5 @@ contract Vault is ERC1155, Ownable, EIP712 {
     /// @return The current schema index
     function getVaultSchemaIndex(uint256 tokenId) external view returns (uint256) {
         return vaults[tokenId].currentSchemaIndex;
-    }
-
-    /// @notice Validates if a string is a valid IPFS hash
-    /// @param hash The hash to validate
-    /// @return bool indicating if the hash is valid
-    function isValidIPFSHash(string memory hash) public pure returns (bool) {
-        bytes memory hashBytes = bytes(hash);
-        if (hashBytes.length < 7) return false; // Minimum length for "ipfs://"
-
-        // Check for "ipfs://" prefix
-        bytes memory prefixBytes = bytes(IPFS_PREFIX_STRING);
-        for (uint256 i = 0; i < 7; i++) {
-            if (hashBytes[i] != prefixBytes[i]) return false;
-        }
-
-        // Check for CID prefix (Qm)
-        if (hashBytes.length < 9) return false;
-        if (hashBytes[7] != "Q" || hashBytes[8] != "m") return false;
-
-        // Check that the rest of the string is not empty
-        return hashBytes.length > 9;
     }
 }
