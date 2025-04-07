@@ -6,9 +6,7 @@ import {Vault} from "../src/Vault.sol";
 
 /// @dev Deploys the Vault contract to the selected network.
 contract VaultScript is Script {
-    function setUp() public {}
-
-    function run() public {
+    function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 

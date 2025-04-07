@@ -1,103 +1,87 @@
 // SPDX-License-Identifier: Elastic-2.0
 pragma solidity ^0.8.22;
 
-import "forge-std/Test.sol";
-import "../src/Vault.sol";
-import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import {IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
-import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
+import {Test} from "forge-std/Test.sol";
+import {Vault} from "../src/Vault.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
-contract VaultTest is Test, IERC1155Receiver {
+contract VaultTest is Test {
     Vault public vault;
+    address public owner;
     address public alice;
     address public bob;
     address public charlie;
 
     function setUp() public {
-        vault = new Vault();
-        alice = makeAddr("alice");
-        bob = makeAddr("bob");
-        charlie = makeAddr("charlie");
+        // Label addresses for better error messages
+        owner = address(this);
+        vm.label(owner, "Owner");
 
-        // Set up the schema as the owner
-        vm.startPrank(vault.owner());
-        // Using CIDv0 for schema
-        vault.setSchema(keccak256("QmWATWQ7fVPP2EFGu71UkfnqhYXDYH566qy47CnJDgvs8u"));
-        vm.stopPrank();
+        alice = makeAddr("alice");
+        vm.label(alice, "Alice");
+
+        bob = makeAddr("bob");
+        vm.label(bob, "Bob");
+
+        charlie = makeAddr("charlie");
+        vm.label(charlie, "Charlie");
+
+        // Deploy the vault contract with this contract as owner
+        vm.prank(owner);
+        vault = new Vault();
+
+        // Set up initial schema
+        vault.setSchema("QmSchema1");
+
+        // Clear any existing state
+        vm.clearMockedCalls();
     }
 
+    // Schema Tests
+    function testSetSchema() public {
+        vault.setSchema("QmSchema2");
+        assertEq(vault.getCurrentSchema(), "QmSchema2");
+    }
+
+    function test_RevertWhen_NotOwnerSetsSchema() public {
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, alice));
+        vault.setSchema("QmSchema2");
+    }
+
+    // Vault Creation Tests
     function testCreateVault() public {
         vm.prank(alice);
         vault.createVault(1);
-
-        assertEq(vault.vaultExists(1), true);
+        assertTrue(vault.vaultExists(1));
         assertEq(vault.getVaultOwner(1), alice);
+        assertEq(vault.getPermission(1, alice), vault.PERMISSION_WRITE());
     }
 
-    function test_RevertWhen_CreateVaultWithZeroAddress() public {
-        vm.startPrank(address(0));
-        vm.expectRevert(abi.encodeWithSelector(IERC1155Errors.ERC1155InvalidReceiver.selector, address(0)));
+    function test_RevertWhen_CreateVaultWithoutSchema() public {
+        // Deploy new vault without schema
+        vault = new Vault();
+        vm.prank(alice);
+        vm.expectRevert(Vault.NoSchema.selector);
         vault.createVault(1);
-        vm.stopPrank();
     }
 
-    function test_RevertWhen_CreateVaultWithExistingId() public {
-        vm.startPrank(alice);
+    function test_RevertWhen_CreateDuplicateVault() public {
+        vm.prank(alice);
         vault.createVault(1);
-        vm.expectRevert(abi.encodeWithSelector(Vault.AlreadyHasToken.selector));
+        vm.expectRevert(Vault.AlreadyHasToken.selector);
         vault.createVault(1);
-        vm.stopPrank();
     }
 
+    // Access Control Tests
     function testGrantAccess() public {
         vm.startPrank(alice);
         vault.createVault(1);
         vault.grantAccess(bob, 1, vault.PERMISSION_READ());
         vm.stopPrank();
-
-        assertEq(vault.permissions(1, bob), vault.PERMISSION_READ());
-    }
-
-    function test_RevertWhen_GrantAccessWithInvalidPermission() public {
-        vm.startPrank(alice);
-        vault.createVault(1);
-        vm.expectRevert(abi.encodeWithSelector(Vault.InvalidPermission.selector));
-        vault.grantAccess(bob, 1, 3);
-        vm.stopPrank();
-    }
-
-    function test_RevertWhen_GrantAccessToZeroAddress() public {
-        vm.startPrank(alice);
-        vault.createVault(1);
-        vm.expectRevert(abi.encodeWithSelector(Vault.ZeroAddress.selector));
-        vault.grantAccess(address(0), 1, 1);
-        vm.stopPrank();
-    }
-
-    function test_RevertWhen_GrantAccessToExistingToken() public {
-        vm.startPrank(alice);
-        vault.createVault(1);
-        vault.grantAccess(bob, 1, 1);
-        vm.expectRevert(abi.encodeWithSelector(Vault.AlreadyHasToken.selector));
-        vault.grantAccess(bob, 1, 1);
-        vm.stopPrank();
-    }
-
-    function test_RevertWhen_GrantAccessToNonExistentVault() public {
-        vm.expectRevert(abi.encodeWithSelector(Vault.VaultDoesNotExist.selector));
-        vault.grantAccess(bob, 1, 1);
-    }
-
-    function test_RevertWhen_GrantAccessAsNonOwner() public {
-        vm.startPrank(alice);
-        vault.createVault(1);
-        vm.stopPrank();
-
-        vm.startPrank(bob);
-        vm.expectRevert(abi.encodeWithSelector(Vault.NotVaultOwner.selector));
-        vault.grantAccess(charlie, 1, 1);
-        vm.stopPrank();
+        assertEq(vault.getPermission(1, bob), vault.PERMISSION_READ());
     }
 
     function testRevokeAccess() public {
@@ -106,24 +90,7 @@ contract VaultTest is Test, IERC1155Receiver {
         vault.grantAccess(bob, 1, vault.PERMISSION_READ());
         vault.revokeAccess(1, bob);
         vm.stopPrank();
-
-        assertEq(vault.permissions(1, bob), vault.PERMISSION_NONE());
-    }
-
-    function test_RevertWhen_RevokeAccessToZeroAddress() public {
-        vm.startPrank(alice);
-        vault.createVault(1);
-        vm.expectRevert(abi.encodeWithSelector(Vault.ZeroAddress.selector));
-        vault.revokeAccess(1, address(0));
-        vm.stopPrank();
-    }
-
-    function test_RevertWhen_RevokeAccessToSelf() public {
-        vm.startPrank(alice);
-        vault.createVault(1);
-        vm.expectRevert(abi.encodeWithSelector(Vault.CannotRevokeAccessToSelf.selector));
-        vault.revokeAccess(1, alice);
-        vm.stopPrank();
+        assertEq(vault.getPermission(1, bob), vault.PERMISSION_NONE());
     }
 
     function testUpgradePermission() public {
@@ -132,326 +99,487 @@ contract VaultTest is Test, IERC1155Receiver {
         vault.grantAccess(bob, 1, vault.PERMISSION_READ());
         vault.upgradePermission(1, bob, vault.PERMISSION_WRITE());
         vm.stopPrank();
-
-        assertEq(vault.permissions(1, bob), vault.PERMISSION_WRITE());
+        assertEq(vault.getPermission(1, bob), vault.PERMISSION_WRITE());
     }
 
-    function test_RevertWhen_UpgradePermissionFromNonRead() public {
-        uint8 writePermission = vault.PERMISSION_WRITE();
-        vm.startPrank(alice);
-        vault.createVault(1);
-        vault.grantAccess(bob, 1, writePermission);
-        vm.stopPrank();
+    function test_RevertWhen_NotVaultOwnerGrantsAccess() public {
+        uint8 permissionRead = vault.PERMISSION_READ();
+        vm.deal(alice, 1 ether);
+        vm.deal(bob, 1 ether);
+        vm.deal(charlie, 1 ether);
 
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(Vault.InvalidUpgrade.selector));
-        vault.upgradePermission(1, bob, writePermission);
-    }
-
-    function test_RevertWhen_UpgradePermissionToNonWrite() public {
-        uint8 readPermission = vault.PERMISSION_READ();
-        vm.startPrank(alice);
         vault.createVault(1);
-        vault.grantAccess(bob, 1, readPermission);
-        vm.stopPrank();
 
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(Vault.InvalidUpgrade.selector));
-        vault.upgradePermission(1, bob, readPermission);
+        // Debug info
+        assertTrue(vault.vaultExists(1), "Vault should exist");
+        assertEq(vault.getVaultOwner(1), alice, "Alice should be the owner");
+        assertEq(vault.getPermission(1, alice), vault.PERMISSION_WRITE(), "Alice should have write permission");
+        assertEq(vault.balanceOf(charlie, 1), 0, "Charlie should not have token");
+
+        vm.prank(bob);
+        vm.expectRevert(Vault.NotVaultOwner.selector);
+        vault.grantAccess(charlie, 1, permissionRead);
     }
 
-    function test_RevertWhen_UpgradePermissionWithInvalidPermission() public {
+    function test_RevertWhen_NotVaultOwnerRevokesAccess() public {
         vm.startPrank(alice);
         vault.createVault(1);
         vault.grantAccess(bob, 1, vault.PERMISSION_READ());
-        vm.expectRevert(abi.encodeWithSelector(Vault.InvalidUpgrade.selector));
-        vault.upgradePermission(1, bob, 3);
-        vm.stopPrank();
-    }
-
-    function testStoreContentWithMetadata() public {
-        vm.startPrank(alice);
-        vault.createVault(1);
-        vault.grantAccess(bob, 1, vault.PERMISSION_WRITE());
         vm.stopPrank();
 
         vm.prank(bob);
-        // Using CIDv1 base32 for content
-        bytes32 contentHash = keccak256("bafkreiem4twkqzsq2aj6enwxgwroxdt5ridl7ps4uwvqwkrrl4kixz74g4");
-        bytes32 metadataHash = keccak256('{"name": "test"}');
-        vault.storeContentWithMetadata(1, contentHash, metadataHash);
+        vm.expectRevert(Vault.NotVaultOwner.selector);
+        vault.revokeAccess(1, charlie);
     }
 
+    function test_RevertWhen_RevokeAccessToSelf() public {
+        vm.prank(alice);
+        vault.createVault(1);
+
+        vm.prank(alice);
+        vm.expectRevert(Vault.CannotRevokeAccessToSelf.selector);
+        vault.revokeAccess(1, alice);
+    }
+
+    // Content Storage Tests
+    function testStoreContent() public {
+        vm.startPrank(alice);
+        vault.createVault(1);
+        vault.storeContentWithMetadata(1, bytes("encryptedCID"), true, "metadata");
+        vm.stopPrank();
+    }
+
+    function test_RevertWhen_NoWritePermissionStoresContent() public {
+        vm.startPrank(alice);
+        vault.createVault(1);
+        vault.grantAccess(bob, 1, vault.PERMISSION_READ());
+        vm.stopPrank();
+
+        vm.prank(bob);
+        vm.expectRevert(Vault.NoWritePermission.selector);
+        vault.storeContentWithMetadata(1, bytes("encryptedCID"), true, "metadata");
+    }
+
+    // Batch Operations Tests
     function testStoreContentBatch() public {
         vm.startPrank(alice);
         vault.createVault(1);
-        vault.grantAccess(bob, 1, vault.PERMISSION_WRITE());
+
+        bytes[] memory cids = new bytes[](2);
+        cids[0] = bytes("encryptedCID1");
+        cids[1] = bytes("encryptedCID2");
+
+        string[] memory metadatas = new string[](2);
+        metadatas[0] = "metadata1";
+        metadatas[1] = "metadata2";
+
+        vault.storeContentBatch(1, cids, true, metadatas);
         vm.stopPrank();
-
-        bytes32[] memory hashes = new bytes32[](3);
-        bytes32[] memory metas = new bytes32[](3);
-        for (uint256 i = 0; i < 3; i++) {
-            // Using different CID formats for each content hash
-            if (i == 0) {
-                // CIDv0
-                hashes[i] = keccak256("QmWATWQ7fVPP2EFGu71UkfnqhYXDYH566qy47CnJDgvs8u");
-            } else if (i == 1) {
-                // CIDv1 base32
-                hashes[i] = keccak256("bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi");
-            } else {
-                // CIDv1 base36
-                hashes[i] = keccak256("k51qzi5uqu5dh9ihj9u2k5zk8ygjk3l5mh7akbt8b6medi77r5w55g4rg8chx3");
-            }
-            metas[i] = keccak256('{"title":"test"}');
-        }
-
-        vm.prank(bob);
-        vault.storeContentBatch(1, hashes, metas);
     }
 
-    function test_RevertWhen_StoreContentBatchWithEmptyArrays() public {
-        vm.startPrank(alice);
+    function test_RevertWhen_EmptyBatch() public {
+        vm.prank(alice);
         vault.createVault(1);
-        vault.grantAccess(bob, 1, vault.PERMISSION_WRITE());
-        vm.stopPrank();
 
-        bytes32[] memory hashes = new bytes32[](0);
-        bytes32[] memory metas = new bytes32[](0);
+        bytes[] memory cids = new bytes[](0);
+        string[] memory metadatas = new string[](0);
 
-        vm.expectRevert(abi.encodeWithSelector(Vault.EmptyArray.selector));
-        vm.prank(bob);
-        vault.storeContentBatch(1, hashes, metas);
+        vm.prank(alice);
+        vm.expectRevert(Vault.EmptyArray.selector);
+        vault.storeContentBatch(1, cids, true, metadatas);
     }
 
-    function test_RevertWhen_StoreContentBatchWithMismatchedLengths() public {
-        vm.startPrank(alice);
+    function test_RevertWhen_MismatchedBatchLengths() public {
+        vm.prank(alice);
         vault.createVault(1);
-        vault.grantAccess(bob, 1, vault.PERMISSION_WRITE());
-        vm.stopPrank();
 
-        bytes32[] memory hashes = new bytes32[](2);
-        bytes32[] memory metas = new bytes32[](3);
-        for (uint256 i = 0; i < 2; i++) {
-            hashes[i] = keccak256("bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi");
-        }
-        for (uint256 i = 0; i < 3; i++) {
-            metas[i] = keccak256('{"title":"test"}');
-        }
+        bytes[] memory cids = new bytes[](2);
+        cids[0] = bytes("encryptedCID1");
+        cids[1] = bytes("encryptedCID2");
 
-        vm.expectRevert(abi.encodeWithSelector(Vault.MismatchedArrayLengths.selector));
-        vm.prank(bob);
-        vault.storeContentBatch(1, hashes, metas);
-    }
+        string[] memory metadatas = new string[](1);
+        metadatas[0] = "metadata1";
 
-    function testSetURI() public {
-        string memory newURI = "https://example.com/metadata/{id}.json";
-        vm.prank(vault.owner());
-        vault.setURI(newURI);
-    }
-
-    function test_RevertWhen_SetURINonOwner() public {
-        string memory newURI = "https://example.com/metadata/{id}.json";
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, alice));
         vm.prank(alice);
-        vault.setURI(newURI);
+        vm.expectRevert(Vault.MismatchedArrayLengths.selector);
+        vault.storeContentBatch(1, cids, true, metadatas);
     }
 
-    function testSchemaManagement() public {
-        vm.startPrank(vault.owner());
-        // Using CIDv1 base36 for new schema
-        vault.setSchema(keccak256("k51qzi5uqu5dh9ihj9u2k5zk8ygjk3l5mh7akbt8b6medi77r5w55g4rg8chx3"));
-        assertEq(vault.getCurrentSchema(), keccak256("k51qzi5uqu5dh9ihj9u2k5zk8ygjk3l5mh7akbt8b6medi77r5w55g4rg8chx3"));
+    // Additional test cases to improve coverage
+    function testGetNonce() public {
+        // Initially nonce should be 0
+        assertEq(vault.getNonce(owner), 0);
 
-        vault.deprecateSchema(2);
-        assertEq(vault.deprecatedSchemas(2), true);
-        vm.stopPrank();
+        // After setting schema, nonce should still be 0
+        vault.setSchema("QmSchema3");
+        assertEq(vault.getNonce(owner), 0);
     }
 
-    function test_RevertWhen_SetSchemaNonOwner() public {
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, alice));
-        vm.prank(alice);
-        vault.setSchema(keccak256("bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"));
+    function testGetSchema() public {
+        string memory schema1 = "QmSchema1";
+        string memory schema2 = "QmSchema2";
+
+        // Clear existing schema from setUp
+        vm.prank(owner);
+        vault = new Vault();
+
+        // Set up multiple schemas
+        vault.setSchema(schema1);
+        vault.setSchema(schema2);
+
+        // Test getting valid schema
+        assertEq(vault.getSchema(1), schema1);
+        assertEq(vault.getSchema(2), schema2);
+
+        // Test getting current schema (should be the last one set)
+        assertEq(vault.getCurrentSchema(), schema2);
     }
 
-    function test_RevertWhen_DeprecateSchemaNonOwner() public {
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, alice));
-        vm.prank(alice);
-        vault.deprecateSchema(1);
-    }
-
-    function test_RevertWhen_DeprecateSchemaInvalidIndex() public {
-        vm.prank(vault.owner());
-        vm.expectRevert(abi.encodeWithSelector(Vault.InvalidSchemaIndex.selector));
-        vault.deprecateSchema(0);
-    }
-
-    function test_RevertWhen_GetSchemaInvalidIndex() public {
-        vm.expectRevert(abi.encodeWithSelector(Vault.InvalidSchemaIndex.selector));
+    function test_RevertWhen_InvalidSchemaIndex() public {
+        // Test with index 0
+        vm.expectRevert(Vault.InvalidSchemaIndex.selector);
         vault.getSchema(0);
+
+        // Test with index beyond last schema
+        vm.expectRevert(Vault.InvalidSchemaIndex.selector);
+        vault.getSchema(10);
     }
 
-    function testVerifyVaultState() public {
-        assertEq(vault.vaultExists(999), false);
-        assertEq(vault.getVaultOwner(999), address(0));
-
+    function testTransferVaultOwnership() public {
+        // Create a vault for alice
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(Vault.VaultDoesNotExist.selector));
-        vault.grantAccess(bob, 999, 1);
+        vault.createVault(1);
+
+        // Transfer ownership to bob
+        vm.prank(alice);
+        vault.transferVaultOwnership(1, bob);
+
+        // Verify bob is now the owner
+        assertEq(vault.getVaultOwner(1), bob);
     }
 
-    function testGrantAccessValidation() public {
+    function test_RevertWhen_TransferVaultOwnershipToZeroAddress() public {
+        // Create a vault for alice
+        vm.prank(alice);
+        vault.createVault(1);
+
+        // Try to transfer to zero address
+        vm.prank(alice);
+        vm.expectRevert(Vault.ZeroAddress.selector);
+        vault.transferVaultOwnership(1, address(0));
+    }
+
+    function test_RevertWhen_TransferNonExistentVault() public {
+        // Try to transfer a non-existent vault
+        vm.prank(alice);
+        vm.expectRevert(Vault.VaultDoesNotExist.selector);
+        vault.transferVaultOwnership(999, bob);
+    }
+
+    function test_RevertWhen_NotVaultOwnerTransfersOwnership() public {
+        // Create a vault for alice
+        vm.prank(alice);
+        vault.createVault(1);
+
+        // Bob tries to transfer ownership
+        vm.prank(bob);
+        vm.expectRevert(Vault.NotVaultOwner.selector);
+        vault.transferVaultOwnership(1, charlie);
+    }
+
+    function test_RevertWhen_GrantAccessToZeroAddress() public {
+        // Create a vault for alice
+        uint8 permissionRead = vault.PERMISSION_READ();
         vm.startPrank(alice);
         vault.createVault(1);
-        vm.stopPrank();
 
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(Vault.InvalidPermission.selector));
-        vault.grantAccess(bob, 1, 3);
-
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(Vault.ZeroAddress.selector));
-        vault.grantAccess(address(0), 1, 1);
-    }
-
-    function testStateTransitions() public {
-        // Initial state
-        assertEq(vault.vaultExists(1), false);
-        assertEq(vault.getVaultOwner(1), address(0));
-        assertEq(vault.balanceOf(alice, 1), 0);
-        assertEq(vault.balanceOf(bob, 1), 0);
-        assertEq(vault.permissions(1, alice), 0);
-        assertEq(vault.permissions(1, bob), 0);
-
-        // Create vault
-        vm.startPrank(alice);
-        vault.createVault(1);
-        vm.stopPrank();
-
-        // After creation
-        assertEq(vault.vaultExists(1), true);
-        assertEq(vault.getVaultOwner(1), alice);
-        assertEq(vault.balanceOf(alice, 1), 1);
-        assertEq(vault.balanceOf(bob, 1), 0);
-        assertEq(vault.permissions(1, alice), vault.PERMISSION_WRITE());
-        assertEq(vault.permissions(1, bob), 0);
-
-        // Grant access
-        vm.startPrank(alice);
-        vault.grantAccess(bob, 1, vault.PERMISSION_READ());
-        vm.stopPrank();
-
-        // After granting access
-        assertEq(vault.vaultExists(1), true);
-        assertEq(vault.getVaultOwner(1), alice);
-        assertEq(vault.balanceOf(alice, 1), 1);
-        assertEq(vault.balanceOf(bob, 1), 1);
-        assertEq(vault.permissions(1, alice), vault.PERMISSION_WRITE());
-        assertEq(vault.permissions(1, bob), vault.PERMISSION_READ());
-
-        // Upgrade permission
-        vm.startPrank(alice);
-        vault.upgradePermission(1, bob, vault.PERMISSION_WRITE());
-        vm.stopPrank();
-
-        // After upgrading permission
-        assertEq(vault.vaultExists(1), true);
-        assertEq(vault.getVaultOwner(1), alice);
-        assertEq(vault.balanceOf(alice, 1), 1);
-        assertEq(vault.balanceOf(bob, 1), 1);
-        assertEq(vault.permissions(1, alice), vault.PERMISSION_WRITE());
-        assertEq(vault.permissions(1, bob), vault.PERMISSION_WRITE());
-
-        vm.startPrank(alice);
-        vm.expectRevert(abi.encodeWithSelector(Vault.InvalidPermission.selector));
-        vault.grantAccess(charlie, 1, 3);
+        // Try to grant access to zero address
+        vm.expectRevert(Vault.ZeroAddress.selector);
+        vault.grantAccess(address(0), 1, permissionRead);
         vm.stopPrank();
     }
 
-    function test_RevertWhen_RevokeAccessFromOwner() public {
+    function test_RevertWhen_GrantAccessToNonExistentVault() public {
+        // Try to grant access to a non-existent vault
+        // First clear any existing schema to ensure vault creation is not possible
+        vm.prank(owner);
+        vault = new Vault();
+
+        // Set schema to allow vault operations
+        vault.setSchema("QmSchema1");
+
+        // Try to grant access to a non-existent vault
+        uint8 permissionRead = vault.PERMISSION_READ();
+        vm.startPrank(alice);
+        vm.expectRevert(Vault.VaultDoesNotExist.selector);
+        vault.grantAccess(bob, 999, permissionRead);
+        vm.stopPrank();
+    }
+
+    function test_RevertWhen_GrantAccessWithInvalidPermission() public {
+        // Create a vault for alice
+        vm.prank(alice);
+        vault.createVault(1);
+
+        // Try to grant invalid permission
+        vm.prank(alice);
+        vm.expectRevert(Vault.InvalidPermission.selector);
+        vault.grantAccess(bob, 1, 99); // Invalid permission level
+    }
+
+    function test_RevertWhen_GrantAccessToUserWithExistingToken() public {
+        // Create a vault for alice
+        uint8 permissionRead = vault.PERMISSION_READ();
         vm.startPrank(alice);
         vault.createVault(1);
-        vm.expectRevert(abi.encodeWithSelector(Vault.CannotRevokeAccessToSelf.selector));
-        vault.revokeAccess(1, alice);
+
+        // Grant access to bob
+        vault.grantAccess(bob, 1, permissionRead);
+
+        // Try to grant access to bob again (should fail)
+        vm.expectRevert(Vault.AlreadyHasToken.selector);
+        vault.grantAccess(bob, 1, permissionRead);
         vm.stopPrank();
+    }
+
+    function test_RevertWhen_UpgradePermissionToInvalidLevel() public {
+        // Create a vault for alice
+        uint8 permissionRead = vault.PERMISSION_READ();
+        vm.startPrank(alice);
+        vault.createVault(1);
+
+        // Grant read access to bob
+        vault.grantAccess(bob, 1, permissionRead);
+
+        // Try to upgrade to invalid permission level (PERMISSION_READ)
+        vm.expectRevert(Vault.InvalidUpgrade.selector);
+        vault.upgradePermission(1, bob, permissionRead);
+        vm.stopPrank();
+    }
+
+    function test_RevertWhen_UpgradePermissionForNonReader() public {
+        // Create a vault for alice
+        uint8 permissionWrite = vault.PERMISSION_WRITE();
+        vm.startPrank(alice);
+        vault.createVault(1);
+
+        // Try to upgrade permission for user without read access
+        vm.expectRevert(Vault.InvalidUpgrade.selector);
+        vault.upgradePermission(1, bob, permissionWrite);
+        vm.stopPrank();
+    }
+
+    function test_RevertWhen_UpgradePermissionToZeroAddress() public {
+        // Create a vault for alice
+        uint8 permissionWrite = vault.PERMISSION_WRITE();
+        vm.startPrank(alice);
+        vault.createVault(1);
+
+        // Try to upgrade permission for zero address
+        vm.expectRevert(Vault.ZeroAddress.selector);
+        vault.upgradePermission(1, address(0), permissionWrite);
+        vm.stopPrank();
+    }
+
+    function test_RevertWhen_RevokeAccessToZeroAddress() public {
+        // Create a vault for alice
+        vm.prank(alice);
+        vault.createVault(1);
+
+        // Try to revoke access for zero address
+        vm.prank(alice);
+        vm.expectRevert(Vault.ZeroAddress.selector);
+        vault.revokeAccess(1, address(0));
     }
 
     function test_RevertWhen_RevokeAccessFromNonExistentVault() public {
-        vm.expectRevert(abi.encodeWithSelector(Vault.VaultDoesNotExist.selector));
-        vault.revokeAccess(999, alice);
+        // Try to revoke access from a non-existent vault
+        vm.prank(alice);
+        vm.expectRevert(Vault.VaultDoesNotExist.selector);
+        vault.revokeAccess(999, bob);
     }
 
     function test_RevertWhen_RevokeAccessFromUserWithoutAccess() public {
-        vm.startPrank(alice);
+        // Create a vault for alice
+        vm.prank(alice);
         vault.createVault(1);
-        vm.expectRevert(abi.encodeWithSelector(Vault.NoAccessToRevoke.selector));
+
+        // Try to revoke access from user without access
+        vm.prank(alice);
+        vm.expectRevert(Vault.NoAccessToRevoke.selector);
         vault.revokeAccess(1, bob);
-        vm.stopPrank();
     }
 
-    function test_RevertWhen_UpgradePermissionForNonExistentVault() public {
-        uint8 writePermission = vault.PERMISSION_WRITE();
+    function testSetURI() public {
+        // Set a new URI
+        vault.setURI("https://example.com/token/{id}.json");
+
+        // Verify URI was set (we can't directly test the internal state, but we can verify it doesn't revert)
+    }
+
+    function testGetVaultSchemaIndex() public {
+        // Create a vault for alice
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(Vault.InvalidUpgrade.selector));
-        vault.upgradePermission(999, bob, writePermission);
+        vault.createVault(1);
+
+        // Verify schema index
+        assertEq(vault.getVaultSchemaIndex(1), 1);
     }
 
-    function test_RevertWhen_UpgradePermissionForUserWithoutAccess() public {
-        uint8 writePermission = vault.PERMISSION_WRITE();
+    // Store constants at the top level to ensure they're available even after contract reverts
+    bytes32 constant METADATA_SIGNATURE_TYPEHASH =
+        keccak256("MetadataHash(string metadata,uint256 tokenId,uint256 nonce,uint256 deadline)");
+    bytes32 constant METADATA_ARRAY_SIGNATURE_TYPEHASH =
+        keccak256("MetadataArrayHash(string[] metadata,uint256 tokenId,uint256 nonce,uint256 deadline)");
+    bytes32 constant PERMISSION_GRANT_TYPEHASH =
+        keccak256("PermissionGrant(address to,uint256 tokenId,uint8 permission,uint256 nonce,uint256 deadline)");
+
+    function test_RevertWhen_StoreContentWithMetadataSigned_ExpiredSignature() public {
+        uint8 permissionWrite = vault.PERMISSION_WRITE();
+        uint256 deadline = block.timestamp - 1; // Expired deadline
+
         vm.startPrank(alice);
         vault.createVault(1);
+        vault.grantAccess(bob, 1, permissionWrite);
         vm.stopPrank();
 
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(Vault.InvalidUpgrade.selector));
-        vault.upgradePermission(1, bob, writePermission);
-    }
-
-    function test_RevertWhen_StoreContentWithoutWritePermission() public {
-        vm.startPrank(alice);
-        vault.createVault(1);
-        vault.grantAccess(bob, 1, vault.PERMISSION_READ());
-        vm.stopPrank();
+        // Create proper EIP-712 signature
+        bytes32 structHash = keccak256(
+            abi.encode(
+                METADATA_SIGNATURE_TYPEHASH,
+                keccak256(bytes("metadata")),
+                uint256(1),
+                uint256(0), // nonce
+                deadline
+            )
+        );
+        bytes32 digest = _hashTypedDataV4(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(uint256(1), digest); // alice's key
+        bytes memory signature = abi.encodePacked(r, s, v);
 
         vm.prank(bob);
-        vm.expectRevert(abi.encodeWithSelector(Vault.NoWritePermission.selector));
-        vault.storeContentWithMetadata(
-            1, keccak256("bafkreiem4twkqzsq2aj6enwxgwroxdt5ridl7ps4uwvqwkrrl4kixz74g4"), keccak256("metadata")
+        vm.expectRevert(Vault.SignatureExpired.selector);
+        vault.storeContentWithMetadataSigned(1, bytes("encryptedCID"), true, "metadata", deadline, signature);
+    }
+
+    function test_RevertWhen_StoreContentWithMetadataSigned_InvalidSignature() public {
+        uint8 permissionWrite = vault.PERMISSION_WRITE();
+        uint256 deadline = block.timestamp + 3600;
+
+        vm.startPrank(alice);
+        vault.createVault(1);
+        vault.grantAccess(bob, 1, permissionWrite);
+        vm.stopPrank();
+
+        // Create proper EIP-712 signature but with wrong signer (bob)
+        bytes32 structHash = keccak256(
+            abi.encode(
+                METADATA_SIGNATURE_TYPEHASH,
+                keccak256(bytes("metadata")),
+                uint256(1),
+                uint256(0), // nonce
+                deadline
+            )
         );
+        bytes32 digest = _hashTypedDataV4(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(uint256(2), digest); // bob's key
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        vm.prank(bob);
+        vm.expectRevert(Vault.InvalidSignature.selector);
+        vault.storeContentWithMetadataSigned(1, bytes("encryptedCID"), true, "metadata", deadline, signature);
     }
 
-    function test_RevertWhen_StoreContentToNonExistentVault() public {
-        vm.expectRevert(abi.encodeWithSelector(Vault.NoWritePermission.selector));
-        vault.storeContentWithMetadata(999, keccak256("QmHash"), keccak256("metadata"));
+    function test_RevertWhen_StoreContentBatchWithSignature_ExpiredSignature() public {
+        uint8 permissionWrite = vault.PERMISSION_WRITE();
+        uint256 deadline = block.timestamp - 1;
+
+        vm.startPrank(alice);
+        vault.createVault(1);
+        vault.grantAccess(bob, 1, permissionWrite);
+        vm.stopPrank();
+
+        string[] memory metadatas = new string[](1);
+        metadatas[0] = "metadata1";
+
+        // Create proper EIP-712 signature
+        bytes32 structHash = keccak256(
+            abi.encode(
+                METADATA_ARRAY_SIGNATURE_TYPEHASH,
+                keccak256(abi.encode(metadatas)),
+                uint256(1),
+                uint256(0), // nonce
+                deadline
+            )
+        );
+        bytes32 digest = _hashTypedDataV4(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(uint256(1), digest); // alice's key
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        vm.prank(bob);
+        vm.expectRevert(Vault.SignatureExpired.selector);
+        vault.storeContentBatchWithSignature(1, new bytes[](1), true, metadatas, deadline, signature);
     }
 
-    function test_RevertWhen_StoreContentWithInvalidHash() public {
+    function test_RevertWhen_GrantAccessWithSignature_ExpiredSignature() public {
+        uint8 permissionRead = vault.PERMISSION_READ();
+        uint256 deadline = block.timestamp - 1;
+
         vm.startPrank(alice);
         vault.createVault(1);
         vm.stopPrank();
 
-        vm.expectRevert(abi.encodeWithSelector(Vault.NoWritePermission.selector));
-        vault.storeContentWithMetadata(1, keccak256("invalid-hash"), keccak256('{"title":"test"}'));
+        // Create proper EIP-712 signature
+        bytes32 structHash = keccak256(
+            abi.encode(
+                PERMISSION_GRANT_TYPEHASH,
+                charlie,
+                uint256(1),
+                permissionRead,
+                uint256(0), // nonce
+                deadline
+            )
+        );
+        bytes32 digest = _hashTypedDataV4(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(uint256(1), digest); // alice's key
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        vm.prank(alice);
+        vm.expectRevert(Vault.SignatureExpired.selector);
+        vault.grantAccessWithSignature(charlie, 1, permissionRead, deadline, signature);
     }
 
-    function onERC1155Received(address, address, uint256, uint256, bytes calldata)
-        external
-        pure
-        override
-        returns (bytes4)
-    {
-        return this.onERC1155Received.selector;
+    function test_RevertWhen_GrantAccessWithSignature_InvalidSignature() public {
+        uint8 permissionRead = vault.PERMISSION_READ();
+        uint256 deadline = block.timestamp + 3600;
+
+        vm.startPrank(alice);
+        vault.createVault(1);
+        vm.stopPrank();
+
+        // Create proper EIP-712 signature but with wrong signer (bob)
+        bytes32 structHash = keccak256(
+            abi.encode(
+                PERMISSION_GRANT_TYPEHASH,
+                charlie,
+                uint256(1),
+                permissionRead,
+                uint256(0), // nonce
+                deadline
+            )
+        );
+        bytes32 digest = _hashTypedDataV4(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(uint256(2), digest); // bob's key
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        vm.prank(alice);
+        vm.expectRevert(Vault.InvalidSignature.selector);
+        vault.grantAccessWithSignature(charlie, 1, permissionRead, deadline, signature);
     }
 
-    function onERC1155BatchReceived(address, address, uint256[] calldata, uint256[] calldata, bytes calldata)
-        external
-        pure
-        override
-        returns (bytes4)
-    {
-        return this.onERC1155BatchReceived.selector;
-    }
-
-    function supportsInterface(bytes4 interfaceId) external pure override returns (bool) {
-        return interfaceId == type(IERC1155Receiver).interfaceId;
+    // Helper function to create EIP-712 digests
+    function _hashTypedDataV4(bytes32 structHash) internal view returns (bytes32) {
+        return keccak256(abi.encodePacked("\x19\x01", vault.DOMAIN_SEPARATOR(), structHash));
     }
 }

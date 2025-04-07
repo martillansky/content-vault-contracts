@@ -37,11 +37,8 @@ contract Vault is ERC1155, Ownable, EIP712 {
     //        Schema Handling        //
     // ----------------------------- //
 
-    // Mapping of schemas: schemaIndex -> CID hash to the JSON schema
-    mapping(uint256 => bytes32) public schemaHashes;
-
-    // Mapping of deprecated schemas: schemaIndex -> bool
-    mapping(uint256 => bool) public deprecatedSchemas;
+    // Mapping of schemas: schemaIndex -> CID to the JSON schema
+    mapping(uint256 => string) public schemaCIDs;
 
     // Index of the last schema
     uint256 public lastSchemaIndex;
@@ -49,9 +46,7 @@ contract Vault is ERC1155, Ownable, EIP712 {
     // Mapping of nonces: address -> nonce
     mapping(address => uint256) public nonces;
 
-    event SchemaSet(uint256 indexed index, bytes32 schemaHash);
-    event SchemaDeprecated(uint256 indexed index, bytes32 schemaHash);
-    event SchemaUpdated(uint256 indexed index, bytes32 oldHash, bytes32 newHash);
+    event SchemaSet(uint256 indexed index, string schemaCID);
 
     /// @notice Gets the current nonce for an address
     /// @param owner The address to check
@@ -61,45 +56,25 @@ contract Vault is ERC1155, Ownable, EIP712 {
     }
 
     /// @notice Sets a new schema for content validation
-    /// @param schemaHash The CID hash of the JSON schema
-    function setSchema(bytes32 schemaHash) external onlyOwner {
+    /// @param schemaCID The CID of the JSON schema
+    function setSchema(string memory schemaCID) external onlyOwner {
         lastSchemaIndex++;
-        schemaHashes[lastSchemaIndex] = schemaHash;
-        emit SchemaSet(lastSchemaIndex, schemaHash);
-    }
-
-    /// @notice Updates an existing schema
-    /// @param index The index of the schema hash to update
-    /// @param newHash The new CID hash of the JSON schema
-    function updateSchema(uint256 index, bytes32 newHash) external onlyOwner {
-        if (index == 0 || index > lastSchemaIndex) revert InvalidSchemaIndex();
-        if (deprecatedSchemas[index]) revert InvalidSchema();
-
-        bytes32 oldHash = schemaHashes[index];
-        schemaHashes[index] = newHash;
-        emit SchemaUpdated(index, oldHash, newHash);
-    }
-
-    /// @notice Deprecates a schema, preventing its use in new content
-    /// @param index The index of the schema to deprecate
-    function deprecateSchema(uint256 index) external onlyOwner {
-        if (index == 0 || index > lastSchemaIndex) revert InvalidSchemaIndex();
-        deprecatedSchemas[index] = true;
-        emit SchemaDeprecated(index, schemaHashes[index]);
+        schemaCIDs[lastSchemaIndex] = schemaCID;
+        emit SchemaSet(lastSchemaIndex, schemaCID);
     }
 
     /// @notice Retrieves a schema by its index
     /// @param index The index of the schema to retrieve
     /// @return The IPFS hash of the schema
-    function getSchema(uint256 index) public view returns (bytes32) {
+    function getSchema(uint256 index) public view returns (string memory) {
         if (index == 0 || index > lastSchemaIndex) revert InvalidSchemaIndex();
-        return schemaHashes[index];
+        return schemaCIDs[index];
     }
 
     /// @notice Gets the current active schema
     /// @return The IPFS hash of the current schema
-    function getCurrentSchema() public view returns (bytes32) {
-        return schemaHashes[lastSchemaIndex];
+    function getCurrentSchema() public view returns (string memory) {
+        return schemaCIDs[lastSchemaIndex];
     }
 
     // ----------------------------- //
@@ -112,12 +87,17 @@ contract Vault is ERC1155, Ownable, EIP712 {
     // Mapping of permissions: tokenId -> address -> permission
     mapping(uint256 => mapping(address => uint8)) public permissions;
 
-    event VaultCreated(uint256 indexed tokenId, address indexed owner, bytes32 schemaHash);
+    event VaultCreated(uint256 indexed tokenId, address indexed owner, string schemaCID);
     event VaultAccessGranted(address indexed to, uint256 indexed tokenId, uint8 permission);
     event VaultAccessRevoked(address indexed to, uint256 indexed tokenId);
     event PermissionUpgraded(address indexed user, uint256 indexed tokenId, uint8 newPermission);
     event ContentStoredWithMetadata(
-        address indexed sender, uint256 indexed tokenId, bytes32 ipfsHash, bytes32 metadataHash
+        address indexed sender,
+        uint256 indexed tokenId,
+        bytes encryptedCID,
+        bool isCIDEncrypted,
+        string metadata,
+        bool isMetadataSigned
     );
     event VaultTransferred(uint256 indexed tokenId, address indexed from, address indexed to);
 
@@ -127,7 +107,6 @@ contract Vault is ERC1155, Ownable, EIP712 {
     error InvalidPermission();
     error CannotRevokeAccessToSelf();
     error NoAccessToRevoke();
-    error InvalidSchema();
     error InvalidSchemaIndex();
     error MismatchedArrayLengths();
     error VaultDoesNotExist();
@@ -136,11 +115,12 @@ contract Vault is ERC1155, Ownable, EIP712 {
     error SignatureExpired();
     error ZeroAddress();
     error EmptyArray();
+    error NoSchema();
 
     bytes32 internal constant METADATA_SIGNATURE_TYPEHASH =
-        keccak256("MetadataHash(bytes32 metadataHash,uint256 tokenId,uint256 nonce,uint256 deadline)");
+        keccak256("MetadataHash(string metadata,uint256 tokenId,uint256 nonce,uint256 deadline)");
     bytes32 internal constant METADATA_ARRAY_SIGNATURE_TYPEHASH =
-        keccak256("MetadataArrayHash(bytes32[] metadataHashes,uint256 tokenId,uint256 nonce,uint256 deadline)");
+        keccak256("MetadataArrayHash(string[] metadata,uint256 tokenId,uint256 nonce,uint256 deadline)");
     bytes32 internal constant PERMISSION_GRANT_TYPEHASH =
         keccak256("PermissionGrant(address to,uint256 tokenId,uint8 permission,uint256 nonce,uint256 deadline)");
     bytes32 internal constant EIP712_DOMAIN_TYPEHASH =
@@ -166,7 +146,7 @@ contract Vault is ERC1155, Ownable, EIP712 {
     /// @param tokenId The unique identifier for the vault
     function createVault(uint256 tokenId) external {
         uint256 schemaIndex = lastSchemaIndex;
-        if (deprecatedSchemas[schemaIndex]) revert InvalidSchema();
+        if (schemaIndex == 0) revert NoSchema();
         if (vaults[tokenId].owner != address(0)) revert AlreadyHasToken();
 
         _mint(msg.sender, tokenId, 1, "");
@@ -174,7 +154,7 @@ contract Vault is ERC1155, Ownable, EIP712 {
         vaults[tokenId] = VaultMetadata({owner: msg.sender, currentSchemaIndex: schemaIndex});
         permissions[tokenId][msg.sender] = PERMISSION_WRITE;
 
-        emit VaultCreated(tokenId, msg.sender, schemaHashes[schemaIndex]);
+        emit VaultCreated(tokenId, msg.sender, schemaCIDs[schemaIndex]);
     }
 
     /// @notice Transfers ownership of a vault to a new address
@@ -236,20 +216,13 @@ contract Vault is ERC1155, Ownable, EIP712 {
             revert InvalidPermission();
         }
         if (balanceOf(to, tokenId) != 0) revert AlreadyHasToken();
-        if (block.timestamp > deadline) revert SignatureExpired();
 
-        // Get the current nonce for signature verification
-        uint256 nonce = nonces[owner];
-
-        bytes32 structHash = keccak256(abi.encode(PERMISSION_GRANT_TYPEHASH, to, tokenId, permission, nonce, deadline));
-
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
-        address signer = ECDSA.recover(digest, signature);
-
-        if (signer != owner) revert InvalidSignature();
-
-        // Only update nonce after successful signature verification
-        nonces[owner]++;
+        _verifySignature(
+            keccak256(abi.encode(PERMISSION_GRANT_TYPEHASH, to, tokenId, permission, nonces[owner], deadline)),
+            owner,
+            deadline,
+            signature
+        );
 
         _mint(to, tokenId, 1, "");
         permissions[tokenId][to] = permission;
@@ -299,121 +272,114 @@ contract Vault is ERC1155, Ownable, EIP712 {
 
     /// @notice Stores content with metadata in a vault
     /// @param tokenId The vault identifier
-    /// @param cidHash The CID hash of the content
-    /// @param metadataHash The hash of the metadata associated with the content
-    function storeContentWithMetadata(uint256 tokenId, bytes32 cidHash, bytes32 metadataHash) external {
-        if (deprecatedSchemas[vaults[tokenId].currentSchemaIndex]) {
-            revert InvalidSchema();
-        }
+    /// @param encryptedCID The encrypted CID of the content
+    /// @param isCIDEncrypted Whether the CID is encrypted
+    /// @param metadata The metadata associated with the content
+    function storeContentWithMetadata(
+        uint256 tokenId,
+        bytes calldata encryptedCID,
+        bool isCIDEncrypted,
+        string calldata metadata
+    ) external {
         if (permissions[tokenId][msg.sender] != PERMISSION_WRITE) {
             revert NoWritePermission();
         }
-        emit ContentStoredWithMetadata(msg.sender, tokenId, cidHash, metadataHash);
+        emit ContentStoredWithMetadata(msg.sender, tokenId, encryptedCID, isCIDEncrypted, metadata, false);
     }
 
     /// @notice Stores multiple content items with metadata in a vault
     /// @param tokenId The vault identifier
-    /// @param cidHashes Array of CID hashes
-    /// @param metadataHashes Array of metadata hashes
-    function storeContentBatch(uint256 tokenId, bytes32[] calldata cidHashes, bytes32[] memory metadataHashes)
-        external
-    {
+    /// @param encryptedCIDs Array of encrypted CIDs
+    /// @param areCIDsEncrypted Boolean indicating if the CIDs are encrypted
+    /// @param metadatas Array of metadatas
+    function storeContentBatch(
+        uint256 tokenId,
+        bytes[] calldata encryptedCIDs,
+        bool areCIDsEncrypted,
+        string[] calldata metadatas
+    ) external {
         if (permissions[tokenId][msg.sender] != PERMISSION_WRITE) {
             revert NoWritePermission();
         }
-        if (cidHashes.length == 0 || metadataHashes.length == 0) {
+        if (encryptedCIDs.length == 0 || metadatas.length == 0) {
             revert EmptyArray();
         }
-        if (cidHashes.length != metadataHashes.length) {
+        if (encryptedCIDs.length != metadatas.length) {
             revert MismatchedArrayLengths();
         }
 
-        for (uint256 i = 0; i < cidHashes.length; ++i) {
-            emit ContentStoredWithMetadata(msg.sender, tokenId, cidHashes[i], metadataHashes[i]);
+        for (uint256 i = 0; i < encryptedCIDs.length; ++i) {
+            emit ContentStoredWithMetadata(msg.sender, tokenId, encryptedCIDs[i], areCIDsEncrypted, metadatas[i], false);
         }
     }
 
     /// @notice Stores content with metadata and EIP-712 signature
     /// @param tokenId The vault identifier
-    /// @param cidHash The (private) cid hash to the content
-    /// @param metadataHash The signed metadata hash associated with the content
+    /// @param encryptedCID The (private) encrypted cid to the content
+    /// @param isCIDEncrypted Whether the CID is encrypted
+    /// @param metadata The signed metadata associated with the content
     /// @param deadline The deadline for the signature
     /// @param signature The EIP-712 signature
     function storeContentWithMetadataSigned(
         uint256 tokenId,
-        bytes32 cidHash,
-        bytes32 metadataHash,
+        bytes calldata encryptedCID,
+        bool isCIDEncrypted,
+        string calldata metadata,
         uint256 deadline,
         bytes calldata signature
     ) external {
-        if (deprecatedSchemas[vaults[tokenId].currentSchemaIndex]) {
-            revert InvalidSchema();
-        }
-        if (block.timestamp > deadline) revert SignatureExpired();
-
         address owner = vaults[tokenId].owner;
         if (owner == address(0)) revert VaultDoesNotExist();
         if (permissions[tokenId][msg.sender] != PERMISSION_WRITE) {
             revert NoWritePermission();
         }
 
-        uint256 nonce = nonces[owner];
+        _verifySignature(
+            keccak256(abi.encode(METADATA_SIGNATURE_TYPEHASH, metadata, tokenId, nonces[owner], deadline)),
+            owner,
+            deadline,
+            signature
+        );
 
-        bytes32 structHash = keccak256(abi.encode(METADATA_SIGNATURE_TYPEHASH, metadataHash, tokenId, nonce, deadline));
-
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
-        address signer = ECDSA.recover(digest, signature);
-        if (signer != owner) revert InvalidSignature();
-
-        nonces[owner]++;
-
-        emit ContentStoredWithMetadata(msg.sender, tokenId, cidHash, metadataHash);
+        emit ContentStoredWithMetadata(msg.sender, tokenId, encryptedCID, isCIDEncrypted, metadata, true);
     }
 
     /// @notice Stores content with metadata and EIP-712 signature
     /// @param tokenId The vault identifier
-    /// @param cidHashes The (private) cid hashes to the contents
-    /// @param metadataHashes The signed metadata hashes associated with the contents
+    /// @param encryptedCIDs The (private) encrypted cids to the contents
+    /// @param areCIDsEncrypted Boolean indicating if the CIDs are encrypted
+    /// @param metadatas The signed metadatas associated with the contents
     /// @param deadline The deadline for the signature
     /// @param signature The EIP-712 signature
     function storeContentBatchWithSignature(
         uint256 tokenId,
-        bytes32[] calldata cidHashes,
-        bytes32[] calldata metadataHashes,
+        bytes[] calldata encryptedCIDs,
+        bool areCIDsEncrypted,
+        string[] calldata metadatas,
         uint256 deadline,
         bytes calldata signature
     ) external {
-        if (deprecatedSchemas[vaults[tokenId].currentSchemaIndex]) {
-            revert InvalidSchema();
-        }
-        if (block.timestamp > deadline) revert SignatureExpired();
         address owner = vaults[tokenId].owner;
         if (owner == address(0)) revert VaultDoesNotExist();
         if (permissions[tokenId][msg.sender] != PERMISSION_WRITE) {
             revert NoWritePermission();
         }
-        if (cidHashes.length == 0 || metadataHashes.length == 0) {
+        if (encryptedCIDs.length == 0 || metadatas.length == 0) {
             revert EmptyArray();
         }
-        if (cidHashes.length != metadataHashes.length) {
+        if (encryptedCIDs.length != metadatas.length) {
             revert MismatchedArrayLengths();
         }
 
-        // Create a digest of the full batch for EIP-712 signature
-        uint256 nonce = nonces[owner];
+        _verifySignature(
+            keccak256(abi.encode(METADATA_ARRAY_SIGNATURE_TYPEHASH, metadatas, tokenId, nonces[owner], deadline)),
+            owner,
+            deadline,
+            signature
+        );
 
-        bytes32 structHash =
-            keccak256(abi.encode(METADATA_ARRAY_SIGNATURE_TYPEHASH, metadataHashes, tokenId, nonce, deadline));
-
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
-        address signer = ECDSA.recover(digest, signature);
-        if (signer != owner) revert InvalidSignature();
-
-        nonces[owner]++;
-
-        // Store content events (CID left empty or hashed elsewhere)
-        for (uint256 i = 0; i < metadataHashes.length; i++) {
-            emit ContentStoredWithMetadata(msg.sender, tokenId, cidHashes[i], metadataHashes[i]);
+        for (uint256 i = 0; i < encryptedCIDs.length; i++) {
+            emit ContentStoredWithMetadata(msg.sender, tokenId, encryptedCIDs[i], areCIDsEncrypted, metadatas[i], true);
         }
     }
 
@@ -459,5 +425,16 @@ contract Vault is ERC1155, Ownable, EIP712 {
     /// @return The current schema index
     function getVaultSchemaIndex(uint256 tokenId) external view returns (uint256) {
         return vaults[tokenId].currentSchemaIndex;
+    }
+
+    function _verifySignature(bytes32 structHash, address owner, uint256 deadline, bytes calldata signature) internal {
+        if (block.timestamp > deadline) revert SignatureExpired();
+
+        // Create a digest of the full batch for EIP-712 signature
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
+        address signer = ECDSA.recover(digest, signature);
+        if (signer != owner) revert InvalidSignature();
+
+        nonces[owner]++;
     }
 }

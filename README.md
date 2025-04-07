@@ -36,27 +36,41 @@ A tokenized, permissioned content vault system built on **ERC1155** and **EIP-71
 ### ✅ Schema Versioning
 
 - Vaults reference a schema index (e.g., an IPFS hash of a JSON schema).
-- Schemas can be **deprecated** to block new content submissions against outdated formats.
+- Schemas cannot be updated or deprecated once set.
 
 ### ✅ Access Permissions
 
-- `PERMISSION_READ = 1`
-- `PERMISSION_WRITE = 2`
+- `PERMISSION_NONE = 0`: No access
+- `PERMISSION_READ = 1`: Can read content
+- `PERMISSION_WRITE = 2`: Can read and write content
 - Stored per `tokenId` + `user` in the `permissions` mapping.
+
+### ✅ Content Storage
+
+- Content is stored as encrypted CIDs (Content Identifiers)
+- The `isCIDEncrypted` flag indicates whether the CID is encrypted
+- Metadata is stored as strings that conform to the vault's schema
+- Metadata can be signed using EIP-712 signatures
 
 ### ✅ Events for Indexing
 
-- `VaultCreated`, `ContentStoredWithMetadata`, `ContentBatchStored`, etc.
-- Designed for integration with **The Graph** or other off-chain data consumers.
+- `VaultCreated(uint256 indexed tokenId, address indexed owner, string schemaCID)`
+- `VaultAccessGranted(address indexed to, uint256 indexed tokenId, uint8 permission)`
+- `VaultAccessRevoked(address indexed to, uint256 indexed tokenId)`
+- `PermissionUpgraded(address indexed user, uint256 indexed tokenId, uint8 newPermission)`
+- `ContentStoredWithMetadata(address indexed sender, uint256 indexed tokenId, bytes encryptedCID, bool isCIDEncrypted, string metadata, bool isMetadataSigned)`
+- `VaultTransferred(uint256 indexed tokenId, address indexed from, address indexed to)`
+- `SchemaSet(uint256 indexed index, string schemaCID)`
+- `URI(string value, uint256 indexed id)`
 
 ### ✅ Testing & Coverage
 
 - Comprehensive test suite using Foundry
 - Current coverage metrics:
-  - Lines: 58.33% (91/156)
-  - Statements: 56.61% (107/189)
-  - Branches: 46.81% (22/47)
-  - Functions: 66.67% (16/24)
+  - Lines: 85.71% (108/126)
+  - Statements: 81.21% (121/149)
+  - Branches: 64.86% (24/37)
+  - Functions: 95.45% (21/22)
 - Coverage reports generated in CI pipeline
 - Gas optimization tracking via `.gas-snapshot`
 
@@ -64,47 +78,64 @@ A tokenized, permissioned content vault system built on **ERC1155** and **EIP-71
 
 The contract implements custom errors for better gas efficiency and clearer error messages:
 
-| Error Selector             | Description                                               |
-| -------------------------- | --------------------------------------------------------- |
-| `ZeroAddress`              | Attempted to use the zero address                         |
-| `VaultDoesNotExist`        | Operation on a non-existent vault                         |
-| `VaultAlreadyExists`       | Attempted to create a vault that already exists           |
-| `NoWritePermission`        | Operation requiring write permission attempted without it |
-| `InvalidPermission`        | Attempted to grant an invalid permission value            |
-| `InvalidIPFSHash`          | Provided IPFS hash is invalid                             |
-| `InvalidSchema`            | Schema validation failed                                  |
-| `CannotRevokeAccessToSelf` | Attempted to revoke own access                            |
-| `AlreadyHasToken`          | User already has access to the vault                      |
-| `InvalidUpgrade`           | Invalid permission upgrade attempt                        |
-| `InvalidNonce`             | Invalid nonce in signature verification                   |
-| `SignatureExpired`         | Signature past its deadline                               |
-| `InvalidSignature`         | Signature verification failed                             |
-| `NotVaultOwner`            | Operation attempted by non-owner                          |
-| `NoAccessToRevoke`         | Attempted to revoke access from user without access       |
-| `InvalidSchemaIndex`       | Invalid schema index provided                             |
-| `MismatchedArrayLengths`   | Array length mismatch in batch operations                 |
-| `EmptyArray`               | Empty array provided for batch operations                 |
+| Error Selector               | Description                                         |
+| ---------------------------- | --------------------------------------------------- |
+| `NotVaultOwner()`            | Caller is not the vault owner                       |
+| `AlreadyHasToken()`          | Address already has access to the vault             |
+| `NoWritePermission()`        | Caller lacks write permission                       |
+| `InvalidPermission()`        | Invalid permission level specified                  |
+| `CannotRevokeAccessToSelf()` | Attempted to revoke own access                      |
+| `NoAccessToRevoke()`         | Attempted to revoke access from user without access |
+| `InvalidSchemaIndex()`       | Invalid schema index provided                       |
+| `MismatchedArrayLengths()`   | Array length mismatch in batch operations           |
+| `VaultDoesNotExist()`        | Vault doesn't exist                                 |
+| `InvalidUpgrade()`           | Invalid permission upgrade attempt                  |
+| `InvalidSignature()`         | Invalid EIP-712 signature                           |
+| `SignatureExpired()`         | Signature has expired                               |
+| `ZeroAddress()`              | Zero address provided                               |
+| `EmptyArray()`               | Empty array provided for batch operations           |
+| `NoSchema()`                 | No schema has been set                              |
 
 ---
 
 ## 🔐 Key Functions
 
-| Function                                    | Description                                                |
-| ------------------------------------------- | ---------------------------------------------------------- |
-| `createVault(tokenId)`                      | Mints a new vault using the current schema.                |
-| `grantAccess(to, tokenId, permission)`      | Grants direct access by the vault owner.                   |
-| `grantAccessWithSignature(...)`             | EIP-712-based gasless access granting via signed messages. |
-| `revokeAccess(tokenId, to)`                 | Revokes access and burns token from `to`.                  |
-| `upgradePermission(tokenId, user)`          | Upgrades `READ` to `WRITE` for a user.                     |
-| `storeContentWithMetadata(...)`             | Stores a content hash + metadata in the vault.             |
-| `storeContentBatch(...)`                    | Batched version for gas optimization.                      |
-| `deprecateSchema(index)`                    | Marks a schema as deprecated.                              |
-| `setURI(newUri)`                            | Updates ERC1155 base metadata URI.                         |
-| `transferVaultOwnership(tokenId, newOwner)` | Transfers vault ownership to a new address.                |
-| `updateSchema(index, newHash)`              | Updates an existing schema with a new hash.                |
-| `getCurrentSchema()`                        | Returns the current active schema hash.                    |
-| `getSchema(index)`                          | Returns a specific schema hash by index.                   |
-| `getNonce(owner)`                           | Returns the current nonce for an address.                  |
+### Schema Management
+
+- `setSchema(string schemaCID)`: Set a new schema (owner only)
+- `getSchema(uint256 index)`: Get schema by index
+- `getCurrentSchema()`: Get current active schema
+
+### Vault Management
+
+- `createVault(uint256 tokenId)`: Create a new vault
+- `transferVaultOwnership(uint256 tokenId, address newOwner)`: Transfer vault ownership
+- `vaultExists(uint256 tokenId)`: Check if vault exists
+- `getVaultOwner(uint256 tokenId)`: Get vault owner
+- `getVaultSchemaIndex(uint256 tokenId)`: Get vault's schema index
+
+### Permission Management
+
+- `grantAccess(address to, uint256 tokenId, uint8 permission)`: Grant access
+- `grantAccessWithSignature(address to, uint256 tokenId, uint8 permission, uint256 deadline, bytes signature)`: Grant access with EIP-712 signature
+- `revokeAccess(uint256 tokenId, address to)`: Revoke access
+- `upgradePermission(uint256 tokenId, address user, uint8 newPermission)`: Upgrade permission level
+- `getPermission(uint256 tokenId, address user)`: Get user's permission level
+
+### Content Management
+
+- `storeContentWithMetadata(uint256 tokenId, bytes encryptedCID, bool isCIDEncrypted, string metadata)`: Store content with metadata
+- `storeContentWithMetadataSigned(uint256 tokenId, bytes encryptedCID, bool isCIDEncrypted, string metadata, uint256 deadline, bytes signature)`: Store content with signed metadata
+- `storeContentBatch(uint256 tokenId, bytes[] encryptedCIDs, bool areCIDsEncrypted, string[] metadatas)`: Store multiple content items
+- `storeContentBatchWithSignature(uint256 tokenId, bytes[] encryptedCIDs, bool areCIDsEncrypted, string[] metadatas, uint256 deadline, bytes signature)`: Store multiple content items with signed metadata
+
+### URI Management
+
+- `setURI(string newuri)`: Set a new base URI for ERC1155 metadata
+
+### Helper Functions
+
+- `getNonce(address owner)`: Get the current nonce for an address
 
 ---
 
@@ -113,10 +144,10 @@ The contract implements custom errors for better gas efficiency and clearer erro
 ### Create a Vault
 
 ```solidity
-vault.createVault(1); // tokenId = 1
+vault.createVault(1); // Creates vault with tokenId = 1
 ```
 
-### Grant Write Access
+### Grant Access
 
 ```solidity
 vault.grantAccess(user, 1, PERMISSION_WRITE);
@@ -128,112 +159,94 @@ vault.grantAccess(user, 1, PERMISSION_WRITE);
 const message = {
   to: user,
   tokenId: 1,
-  permission: 2, // write
+  permission: PERMISSION_WRITE,
   nonce: await vault.getNonce(owner),
   deadline: Math.floor(Date.now() / 1000) + 3600,
 };
 
 const signature = await signer._signTypedData(domain, types, message);
-await vault.grantAccessWithSignature(user, 1, 2, message.deadline, signature);
+await vault.grantAccessWithSignature(
+  user,
+  1,
+  PERMISSION_WRITE,
+  message.deadline,
+  signature
+);
 ```
 
 ### Store Content
 
 ```solidity
-const cidHash = ethers.keccak256(abi.encodePacked(cid, salt, userAddress));
-const metadataHash = ethers.keccak256(abi.encodePacked('{"title": "example"}'));
-vault.storeContentWithMetadata(1, cidHash, metadataHash);
+vault.storeContentWithMetadata(
+  1,                    // tokenId
+  encryptedCID,         // encrypted content identifier
+  true,                 // isCIDEncrypted
+  "metadata"            // metadata string
+);
+```
+
+### Store Content with Signature
+
+```typescript
+const message = {
+  metadata: "metadata",
+  tokenId: 1,
+  nonce: await vault.getNonce(owner),
+  deadline: Math.floor(Date.now() / 1000) + 3600,
+};
+
+const signature = await signer._signTypedData(domain, types, message);
+await vault.storeContentWithMetadataSigned(
+  1, // tokenId
+  encryptedCID, // encrypted content identifier
+  true, // isCIDEncrypted
+  "metadata", // metadata string
+  message.deadline, // deadline
+  signature // EIP-712 signature
+);
 ```
 
 ### Store Batch Content
 
 ```solidity
-string[] memory hashes = new string[](3);
-string[] memory metas = new string[](3);
-for (uint256 i = 0; i < 3; i++) {
-    hashes[i] = ethers.keccak256(abi.encodePacked(cid, salt, userAddress));
-    metas[i] = ethers.keccak256(ethers.toUtf8Bytes(metadata));
-}
-vault.storeContentBatch(1, hashes, metas);
+bytes[] memory cids = new bytes[](2);
+cids[0] = bytes("encryptedCID1");
+cids[1] = bytes("encryptedCID2");
+
+string[] memory metadatas = new string[](2);
+metadatas[0] = "metadata1";
+metadatas[1] = "metadata2";
+
+vault.storeContentBatch(1, cids, true, metadatas);
 ```
 
-### Store Content with Signature (EIP-712)
+### Store Batch Content with Signature
 
 ```typescript
-const cidHash = ethers.keccak256(abi.encodePacked(cid, salt, userAddress));
+const metadatas = ["metadata1", "metadata2"];
 
-const domain = {
-  name: "Vault",
-  version: "1",
-  chainId: 11155111, // Sepolia
-  verifyingContract: "0xYourVaultContractAddress",
-};
-
-const types = {
-  MetadataHash: [
-    { name: "metadataHash", type: "bytes32" },
-    { name: "tokenId", type: "uint256" },
-    { name: "nonce", type: "uint256" },
-    { name: "deadline", type: "uint256" },
-  ],
-};
-
-const value = {
-  metadataHash: ethers.keccak256(ethers.toUtf8Bytes(metadata)),
+const message = {
+  metadatas: metadatas,
   tokenId: 1,
-  nonce: await vault.getNonce(userAddress),
-  deadline: Math.floor(Date.now() / 1000) + 3600, // 1h from now
-};
-
-const signature = await signer._signTypedData(domain, types, value);
-vault.storeContentWithMetadataSignature(1, cidHash, signature);
-```
-
-### Store Content Batch with Signature (EIP-712)
-
-```typescript
-const metadataHashes: string[] = [
-  ethers.utils.keccak256(ethers.utils.toUtf8Bytes('{"title":"A"}')),
-  ethers.utils.keccak256(ethers.utils.toUtf8Bytes('{"title":"B"}')),
-];
-
-const domain = {
-  name: "Vault",
-  version: "1",
-  chainId: 11155111,
-  verifyingContract: "0xYourVaultContractAddress",
-};
-
-const types = {
-  MetadataArrayHash: [
-    { name: "metadataHashes", type: "bytes32[]" },
-    { name: "tokenId", type: "uint256" },
-    { name: "nonce", type: "uint256" },
-    { name: "deadline", type: "uint256" },
-  ],
-};
-
-const value = {
-  metadataHashes: metadataHashes,
-  tokenId: 1,
-  nonce: await vault.getNonce(userAddress),
+  nonce: await vault.getNonce(owner),
   deadline: Math.floor(Date.now() / 1000) + 3600,
 };
 
-const signature = await signer._signTypedData(domain, types, value);
-vault.storeContentBatchWithSignature(1, cidHashes, signature);
+const signature = await signer._signTypedData(domain, types, message);
+await vault.storeContentBatchWithSignature(
+  1, // tokenId
+  cids, // encrypted content identifiers
+  true, // areCIDsEncrypted
+  metadatas, // metadata strings
+  message.deadline, // deadline
+  signature // EIP-712 signature
+);
 ```
 
 ### Transfer Vault Ownership
 
 ```solidity
 vault.transferVaultOwnership(1, newOwner);
-```
-
-### Update Schema
-
-```solidity
-vault.updateSchema(1, newSchemaHash);
 ```
 
 ---
@@ -338,6 +351,9 @@ yarn verify:mainnet
 - Use `permissions[tokenId][user]` to check user access.
 - Use `getNonce(owner)` to retrieve the current nonce for signature replay protection.
 - All `storeContent*` functions require `PERMISSION_WRITE`.
+- Schemas cannot be updated or deprecated once set.
+- Content CIDs can be encrypted (specified by `isCIDEncrypted` flag).
+- Metadata must conform to the vault's schema.
 
 ---
 
