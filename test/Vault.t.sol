@@ -170,7 +170,7 @@ contract VaultTest is Test {
         cids[0] = bytes("encryptedCID1");
         cids[1] = bytes("encryptedCID2");
 
-        string[] memory metadatas = new string[](2);
+        bytes[] memory metadatas = new bytes[](2);
         metadatas[0] = "metadata1";
         metadatas[1] = "metadata2";
 
@@ -183,7 +183,7 @@ contract VaultTest is Test {
         vault.createVault(1);
 
         bytes[] memory cids = new bytes[](0);
-        string[] memory metadatas = new string[](0);
+        bytes[] memory metadatas = new bytes[](0);
 
         vm.prank(alice);
         vm.expectRevert(Vault.EmptyArray.selector);
@@ -198,7 +198,7 @@ contract VaultTest is Test {
         cids[0] = bytes("encryptedCID1");
         cids[1] = bytes("encryptedCID2");
 
-        string[] memory metadatas = new string[](1);
+        bytes[] memory metadatas = new bytes[](1);
         metadatas[0] = "metadata1";
 
         vm.prank(alice);
@@ -500,7 +500,7 @@ contract VaultTest is Test {
         vault.grantAccess(bob, 1, permissionWrite);
         vm.stopPrank();
 
-        string[] memory metadatas = new string[](1);
+        bytes[] memory metadatas = new bytes[](1);
         metadatas[0] = "metadata1";
 
         // Create proper EIP-712 signature

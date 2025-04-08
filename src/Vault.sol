@@ -96,7 +96,7 @@ contract Vault is ERC1155, Ownable, EIP712 {
         uint256 indexed tokenId,
         bytes encryptedCID,
         bool isCIDEncrypted,
-        string metadata,
+        bytes metadata,
         bool isMetadataSigned
     );
     event VaultTransferred(uint256 indexed tokenId, address indexed from, address indexed to);
@@ -279,7 +279,7 @@ contract Vault is ERC1155, Ownable, EIP712 {
         uint256 tokenId,
         bytes calldata encryptedCID,
         bool isCIDEncrypted,
-        string calldata metadata
+        bytes calldata metadata
     ) external {
         if (permissions[tokenId][msg.sender] != PERMISSION_WRITE) {
             revert NoWritePermission();
@@ -296,7 +296,7 @@ contract Vault is ERC1155, Ownable, EIP712 {
         uint256 tokenId,
         bytes[] calldata encryptedCIDs,
         bool areCIDsEncrypted,
-        string[] calldata metadatas
+        bytes[] calldata metadatas
     ) external {
         if (permissions[tokenId][msg.sender] != PERMISSION_WRITE) {
             revert NoWritePermission();
@@ -324,7 +324,7 @@ contract Vault is ERC1155, Ownable, EIP712 {
         uint256 tokenId,
         bytes calldata encryptedCID,
         bool isCIDEncrypted,
-        string calldata metadata,
+        bytes calldata metadata,
         uint256 deadline,
         bytes calldata signature
     ) external {
@@ -355,7 +355,7 @@ contract Vault is ERC1155, Ownable, EIP712 {
         uint256 tokenId,
         bytes[] calldata encryptedCIDs,
         bool areCIDsEncrypted,
-        string[] calldata metadatas,
+        bytes[] calldata metadatas,
         uint256 deadline,
         bytes calldata signature
     ) external {
