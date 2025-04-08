@@ -49,7 +49,7 @@ A tokenized, permissioned content vault system built on **ERC1155** and **EIP-71
 
 - Content is stored as encrypted CIDs (Content Identifiers)
 - The `isCIDEncrypted` flag indicates whether the CID is encrypted
-- Metadata is stored as strings that conform to the vault's schema
+- Metadata is stored as bytes that conform to the vault's schema
 - Metadata can be signed using EIP-712 signatures
 
 ### ✅ Events for Indexing
@@ -58,7 +58,7 @@ A tokenized, permissioned content vault system built on **ERC1155** and **EIP-71
 - `VaultAccessGranted(address indexed to, uint256 indexed tokenId, uint8 permission)`
 - `VaultAccessRevoked(address indexed to, uint256 indexed tokenId)`
 - `PermissionUpgraded(address indexed user, uint256 indexed tokenId, uint8 newPermission)`
-- `ContentStoredWithMetadata(address indexed sender, uint256 indexed tokenId, bytes encryptedCID, bool isCIDEncrypted, string metadata, bool isMetadataSigned)`
+- `ContentStoredWithMetadata(address indexed sender, uint256 indexed tokenId, bytes encryptedCID, bool isCIDEncrypted, bytes metadata, bool isMetadataSigned)`
 - `VaultTransferred(uint256 indexed tokenId, address indexed from, address indexed to)`
 - `SchemaSet(uint256 indexed index, string schemaCID)`
 - `URI(string value, uint256 indexed id)`
@@ -124,10 +124,10 @@ The contract implements custom errors for better gas efficiency and clearer erro
 
 ### Content Management
 
-- `storeContentWithMetadata(uint256 tokenId, bytes encryptedCID, bool isCIDEncrypted, string metadata)`: Store content with metadata
-- `storeContentWithMetadataSigned(uint256 tokenId, bytes encryptedCID, bool isCIDEncrypted, string metadata, uint256 deadline, bytes signature)`: Store content with signed metadata
-- `storeContentBatch(uint256 tokenId, bytes[] encryptedCIDs, bool areCIDsEncrypted, string[] metadatas)`: Store multiple content items
-- `storeContentBatchWithSignature(uint256 tokenId, bytes[] encryptedCIDs, bool areCIDsEncrypted, string[] metadatas, uint256 deadline, bytes signature)`: Store multiple content items with signed metadata
+- `storeContentWithMetadata(uint256 tokenId, bytes encryptedCID, bool isCIDEncrypted, bytes metadata)`: Store content with metadata
+- `storeContentWithMetadataSigned(uint256 tokenId, bytes encryptedCID, bool isCIDEncrypted, bytes metadata, uint256 deadline, bytes signature)`: Store content with signed metadata
+- `storeContentBatch(uint256 tokenId, bytes[] encryptedCIDs, bool areCIDsEncrypted, bytes[] metadatas)`: Store multiple content items
+- `storeContentBatchWithSignature(uint256 tokenId, bytes[] encryptedCIDs, bool areCIDsEncrypted, bytes[] metadatas, uint256 deadline, bytes signature)`: Store multiple content items with signed metadata
 
 ### URI Management
 
@@ -181,15 +181,27 @@ vault.storeContentWithMetadata(
   1,                    // tokenId
   encryptedCID,         // encrypted content identifier
   true,                 // isCIDEncrypted
-  "metadata"            // metadata string
+  0x...            // metadata bytes
 );
 ```
 
 ### Store Content with Signature
 
 ```typescript
+const json = {
+  name: "tj",
+  extension: "png",
+  route: "./images",
+  type: "image/png",
+  description: "Gighli style image of TJ",
+  timestamp: "1743795262",
+};
+
+const str = JSON.stringify(json);
+const metadataBytes = Buffer.from(str, "utf8").toString("hex");
+
 const message = {
-  metadata: "metadata",
+  metadata: metadataBytes,
   tokenId: 1,
   nonce: await vault.getNonce(owner),
   deadline: Math.floor(Date.now() / 1000) + 3600,
@@ -200,7 +212,7 @@ await vault.storeContentWithMetadataSigned(
   1, // tokenId
   encryptedCID, // encrypted content identifier
   true, // isCIDEncrypted
-  "metadata", // metadata string
+  metadataBytes, // metadata bytes
   message.deadline, // deadline
   signature // EIP-712 signature
 );
@@ -223,7 +235,7 @@ vault.storeContentBatch(1, cids, true, metadatas);
 ### Store Batch Content with Signature
 
 ```typescript
-const metadatas = ["metadata1", "metadata2"];
+const metadatas = [0x1..., 0x2...];
 
 const message = {
   metadatas: metadatas,
@@ -237,7 +249,7 @@ await vault.storeContentBatchWithSignature(
   1, // tokenId
   cids, // encrypted content identifiers
   true, // areCIDsEncrypted
-  metadatas, // metadata strings
+  metadatas, // metadata bytes
   message.deadline, // deadline
   signature // EIP-712 signature
 );
