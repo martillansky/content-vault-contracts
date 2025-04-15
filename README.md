@@ -96,6 +96,13 @@ The contract implements custom errors for better gas efficiency and clearer erro
 | `EmptyArray()`               | Empty array provided for batch operations           |
 | `NoSchema()`                 | No schema has been set                              |
 
+### ✅ Vault Management
+
+- Each vault is represented by a `tokenId`.
+- Multiple users can share access to the same vault via token balance.
+- Vaults include a name and description for better identification and organization.
+- Vault metadata is emitted through events for transparency and off-chain indexing.
+
 ---
 
 ## 🔐 Key Functions
@@ -108,11 +115,13 @@ The contract implements custom errors for better gas efficiency and clearer erro
 
 ### Vault Management
 
-- `createVault(uint256 tokenId)`: Create a new vault
+- `createVault(uint256 tokenId, string name, string description)`: Create a new vault with name and description
 - `transferVaultOwnership(uint256 tokenId, address newOwner)`: Transfer vault ownership
 - `vaultExists(uint256 tokenId)`: Check if vault exists
 - `getVaultOwner(uint256 tokenId)`: Get vault owner
 - `getVaultSchemaIndex(uint256 tokenId)`: Get vault's schema index
+- `getVaultName(uint256 tokenId)`: Get vault name
+- `getVaultDescription(uint256 tokenId)`: Get vault description
 
 ### Permission Management
 
@@ -144,7 +153,11 @@ The contract implements custom errors for better gas efficiency and clearer erro
 ### Create a Vault
 
 ```solidity
-vault.createVault(1); // Creates vault with tokenId = 1
+vault.createVault(
+  1,                    // tokenId
+  "My Content Vault",   // name
+  "A vault for storing encrypted content" // description
+);
 ```
 
 ### Grant Access
