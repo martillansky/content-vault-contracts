@@ -96,6 +96,18 @@ The contract implements custom errors for better gas efficiency and clearer erro
 | `EmptyArray()`               | Empty array provided for batch operations           |
 | `NoSchema()`                 | No schema has been set                              |
 
+### 🔗 Cross-Chain Integration
+
+The Content Vault protocol is designed with extensibility in mind. A planned future enhancement will enable cross-chain access control, allowing vaults to grant permissions based on token holdings on other chains.
+
+This feature will be particularly useful for:
+
+- DAOs with governance tokens spread across multiple chains
+- Integration with Snapshot governance spaces
+- Token-gated content access without requiring token bridging
+
+For more details on this planned feature, see the [Cross-Chain Integration Documentation](./libelula-crosschain-access.md).
+
 ### ✅ Vault Management
 
 - Each vault is represented by a `tokenId`.
