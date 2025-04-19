@@ -81,6 +81,9 @@ contract Vault is ERC1155, Ownable, EIP712 {
     //        Vault Management       //
     // ----------------------------- //
 
+    /// @notice The last tokenId used
+    uint256 private lastTokenId;
+
     // Mapping of vaults: tokenId -> metadata
     mapping(uint256 => VaultMetadata) public vaults;
 
@@ -145,18 +148,19 @@ contract Vault is ERC1155, Ownable, EIP712 {
     }
 
     /// @notice Creates a new vault using the current schema
-    /// @param tokenId The unique identifier for the vault
-    function createVault(uint256 tokenId, string memory name, string memory description) external {
+    /// @param name The name of the vault
+    /// @param description The description of the vault
+    function createVault(string memory name, string memory description) external {
         uint256 schemaIndex = lastSchemaIndex;
         if (schemaIndex == 0) revert NoSchema();
-        if (vaults[tokenId].owner != address(0)) revert AlreadyHasToken();
+        lastTokenId++;
 
-        _mint(msg.sender, tokenId, 1, "");
+        _mint(msg.sender, lastTokenId, 1, "");
 
-        vaults[tokenId] = VaultMetadata({owner: msg.sender, currentSchemaIndex: schemaIndex});
-        permissions[tokenId][msg.sender] = PERMISSION_WRITE;
+        vaults[lastTokenId] = VaultMetadata({owner: msg.sender, currentSchemaIndex: schemaIndex});
+        permissions[lastTokenId][msg.sender] = PERMISSION_WRITE;
 
-        emit VaultCreated(tokenId, msg.sender, name, description, schemaCIDs[schemaIndex]);
+        emit VaultCreated(lastTokenId, msg.sender, name, description, schemaCIDs[schemaIndex]);
     }
 
     /// @notice Transfers ownership of a vault to a new address

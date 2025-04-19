@@ -54,7 +54,7 @@ contract VaultTest is Test {
     // Vault Creation Tests
     function testCreateVault() public {
         vm.prank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
         assertTrue(vault.vaultExists(1));
         assertEq(vault.getVaultOwner(1), alice);
         assertEq(vault.getPermission(1, alice), vault.PERMISSION_WRITE());
@@ -65,20 +65,13 @@ contract VaultTest is Test {
         vault = new Vault();
         vm.prank(alice);
         vm.expectRevert(Vault.NoSchema.selector);
-        vault.createVault(1, "Vault 1", "Description 1");
-    }
-
-    function test_RevertWhen_CreateDuplicateVault() public {
-        vm.prank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
-        vm.expectRevert(Vault.AlreadyHasToken.selector);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
     }
 
     // Access Control Tests
     function testGrantAccess() public {
         vm.startPrank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
         vault.grantAccess(bob, 1, vault.PERMISSION_READ());
         vm.stopPrank();
         assertEq(vault.getPermission(1, bob), vault.PERMISSION_READ());
@@ -86,7 +79,7 @@ contract VaultTest is Test {
 
     function testRevokeAccess() public {
         vm.startPrank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
         vault.grantAccess(bob, 1, vault.PERMISSION_READ());
         vault.revokeAccess(1, bob);
         vm.stopPrank();
@@ -95,7 +88,7 @@ contract VaultTest is Test {
 
     function testUpgradePermission() public {
         vm.startPrank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
         vault.grantAccess(bob, 1, vault.PERMISSION_READ());
         vault.upgradePermission(1, bob, vault.PERMISSION_WRITE());
         vm.stopPrank();
@@ -109,7 +102,7 @@ contract VaultTest is Test {
         vm.deal(charlie, 1 ether);
 
         vm.prank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
 
         // Debug info
         assertTrue(vault.vaultExists(1), "Vault should exist");
@@ -124,7 +117,7 @@ contract VaultTest is Test {
 
     function test_RevertWhen_NotVaultOwnerRevokesAccess() public {
         vm.startPrank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
         vault.grantAccess(bob, 1, vault.PERMISSION_READ());
         vm.stopPrank();
 
@@ -135,7 +128,7 @@ contract VaultTest is Test {
 
     function test_RevertWhen_RevokeAccessToSelf() public {
         vm.prank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
 
         vm.prank(alice);
         vm.expectRevert(Vault.CannotRevokeAccessToSelf.selector);
@@ -145,14 +138,14 @@ contract VaultTest is Test {
     // Content Storage Tests
     function testStoreContent() public {
         vm.startPrank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
         vault.storeContentWithMetadata(1, bytes("encryptedCID"), true, "metadata");
         vm.stopPrank();
     }
 
     function test_RevertWhen_NoWritePermissionStoresContent() public {
         vm.startPrank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
         vault.grantAccess(bob, 1, vault.PERMISSION_READ());
         vm.stopPrank();
 
@@ -164,7 +157,7 @@ contract VaultTest is Test {
     // Batch Operations Tests
     function testStoreContentBatch() public {
         vm.startPrank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
 
         bytes[] memory cids = new bytes[](2);
         cids[0] = bytes("encryptedCID1");
@@ -180,7 +173,7 @@ contract VaultTest is Test {
 
     function test_RevertWhen_EmptyBatch() public {
         vm.prank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
 
         bytes[] memory cids = new bytes[](0);
         bytes[] memory metadatas = new bytes[](0);
@@ -192,7 +185,7 @@ contract VaultTest is Test {
 
     function test_RevertWhen_MismatchedBatchLengths() public {
         vm.prank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
 
         bytes[] memory cids = new bytes[](2);
         cids[0] = bytes("encryptedCID1");
@@ -249,7 +242,7 @@ contract VaultTest is Test {
     function testTransferVaultOwnership() public {
         // Create a vault for alice
         vm.prank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
 
         // Transfer ownership to bob
         vm.prank(alice);
@@ -262,7 +255,7 @@ contract VaultTest is Test {
     function test_RevertWhen_TransferVaultOwnershipToZeroAddress() public {
         // Create a vault for alice
         vm.prank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
 
         // Try to transfer to zero address
         vm.prank(alice);
@@ -280,7 +273,7 @@ contract VaultTest is Test {
     function test_RevertWhen_NotVaultOwnerTransfersOwnership() public {
         // Create a vault for alice
         vm.prank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
 
         // Bob tries to transfer ownership
         vm.prank(bob);
@@ -292,7 +285,7 @@ contract VaultTest is Test {
         // Create a vault for alice
         uint8 permissionRead = vault.PERMISSION_READ();
         vm.startPrank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
 
         // Try to grant access to zero address
         vm.expectRevert(Vault.ZeroAddress.selector);
@@ -320,7 +313,7 @@ contract VaultTest is Test {
     function test_RevertWhen_GrantAccessWithInvalidPermission() public {
         // Create a vault for alice
         vm.prank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
 
         // Try to grant invalid permission
         vm.prank(alice);
@@ -332,7 +325,7 @@ contract VaultTest is Test {
         // Create a vault for alice
         uint8 permissionRead = vault.PERMISSION_READ();
         vm.startPrank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
 
         // Grant access to bob
         vault.grantAccess(bob, 1, permissionRead);
@@ -347,7 +340,7 @@ contract VaultTest is Test {
         // Create a vault for alice
         uint8 permissionRead = vault.PERMISSION_READ();
         vm.startPrank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
 
         // Grant read access to bob
         vault.grantAccess(bob, 1, permissionRead);
@@ -362,7 +355,7 @@ contract VaultTest is Test {
         // Create a vault for alice
         uint8 permissionWrite = vault.PERMISSION_WRITE();
         vm.startPrank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
 
         // Try to upgrade permission for user without read access
         vm.expectRevert(Vault.InvalidUpgrade.selector);
@@ -374,7 +367,7 @@ contract VaultTest is Test {
         // Create a vault for alice
         uint8 permissionWrite = vault.PERMISSION_WRITE();
         vm.startPrank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
 
         // Try to upgrade permission for zero address
         vm.expectRevert(Vault.ZeroAddress.selector);
@@ -385,7 +378,7 @@ contract VaultTest is Test {
     function test_RevertWhen_RevokeAccessToZeroAddress() public {
         // Create a vault for alice
         vm.prank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
 
         // Try to revoke access for zero address
         vm.prank(alice);
@@ -403,7 +396,7 @@ contract VaultTest is Test {
     function test_RevertWhen_RevokeAccessFromUserWithoutAccess() public {
         // Create a vault for alice
         vm.prank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
 
         // Try to revoke access from user without access
         vm.prank(alice);
@@ -421,7 +414,7 @@ contract VaultTest is Test {
     function testGetVaultSchemaIndex() public {
         // Create a vault for alice
         vm.prank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
 
         // Verify schema index
         assertEq(vault.getVaultSchemaIndex(1), 1);
@@ -440,7 +433,7 @@ contract VaultTest is Test {
         uint256 deadline = block.timestamp - 1; // Expired deadline
 
         vm.startPrank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
         vault.grantAccess(bob, 1, permissionWrite);
         vm.stopPrank();
 
@@ -468,7 +461,7 @@ contract VaultTest is Test {
         uint256 deadline = block.timestamp + 3600;
 
         vm.startPrank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
         vault.grantAccess(bob, 1, permissionWrite);
         vm.stopPrank();
 
@@ -496,7 +489,7 @@ contract VaultTest is Test {
         uint256 deadline = block.timestamp - 1;
 
         vm.startPrank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
         vault.grantAccess(bob, 1, permissionWrite);
         vm.stopPrank();
 
@@ -527,7 +520,7 @@ contract VaultTest is Test {
         uint256 deadline = block.timestamp - 1;
 
         vm.startPrank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
         vm.stopPrank();
 
         // Create proper EIP-712 signature
@@ -555,7 +548,7 @@ contract VaultTest is Test {
         uint256 deadline = block.timestamp + 3600;
 
         vm.startPrank(alice);
-        vault.createVault(1, "Vault 1", "Description 1");
+        vault.createVault("Vault 1", "Description 1");
         vm.stopPrank();
 
         // Create proper EIP-712 signature but with wrong signer (bob)
