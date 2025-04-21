@@ -7,12 +7,14 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
-contract VaultTest is Test {
+contract VaultTest is Test, EIP712 {
     Vault public vault;
     address public owner;
     address public alice;
     address public bob;
     address public charlie;
+
+    constructor() EIP712("VaultTest", "1") {}
 
     function setUp() public {
         // Label addresses for better error messages
@@ -163,7 +165,7 @@ contract VaultTest is Test {
         cids[0] = bytes("encryptedCID1");
         cids[1] = bytes("encryptedCID2");
 
-        bytes[] memory metadatas = new bytes[](2);
+        string[] memory metadatas = new string[](2);
         metadatas[0] = "metadata1";
         metadatas[1] = "metadata2";
 
@@ -176,7 +178,7 @@ contract VaultTest is Test {
         vault.createVault("Vault 1", "Description 1");
 
         bytes[] memory cids = new bytes[](0);
-        bytes[] memory metadatas = new bytes[](0);
+        string[] memory metadatas = new string[](0);
 
         vm.prank(alice);
         vm.expectRevert(Vault.EmptyArray.selector);
@@ -191,7 +193,7 @@ contract VaultTest is Test {
         cids[0] = bytes("encryptedCID1");
         cids[1] = bytes("encryptedCID2");
 
-        bytes[] memory metadatas = new bytes[](1);
+        string[] memory metadatas = new string[](1);
         metadatas[0] = "metadata1";
 
         vm.prank(alice);
@@ -493,7 +495,7 @@ contract VaultTest is Test {
         vault.grantAccess(bob, 1, permissionWrite);
         vm.stopPrank();
 
-        bytes[] memory metadatas = new bytes[](1);
+        string[] memory metadatas = new string[](1);
         metadatas[0] = "metadata1";
 
         // Create proper EIP-712 signature
@@ -569,10 +571,5 @@ contract VaultTest is Test {
         vm.prank(alice);
         vm.expectRevert(Vault.InvalidSignature.selector);
         vault.grantAccessWithSignature(charlie, 1, permissionRead, deadline, signature);
-    }
-
-    // Helper function to create EIP-712 digests
-    function _hashTypedDataV4(bytes32 structHash) internal view returns (bytes32) {
-        return keccak256(abi.encodePacked("\x19\x01", vault.DOMAIN_SEPARATOR(), structHash));
     }
 }

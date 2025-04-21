@@ -101,7 +101,7 @@ contract Vault is ERC1155, Ownable, EIP712 {
         uint256 indexed tokenId,
         bytes encryptedCID,
         bool isCIDEncrypted,
-        bytes metadata,
+        string metadata,
         bool isMetadataSigned
     );
     event VaultTransferred(uint256 indexed tokenId, address indexed from, address indexed to);
@@ -130,22 +130,8 @@ contract Vault is ERC1155, Ownable, EIP712 {
         keccak256("PermissionGrant(address to,uint256 tokenId,uint8 permission,uint256 nonce,uint256 deadline)");
     bytes32 internal constant EIP712_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
-    bytes32 public immutable DOMAIN_SEPARATOR;
 
-    EIP712Domain private domain_separator_struct =
-        EIP712Domain({name: "Vault", version: "1", chainId: block.chainid, verifyingContract: address(this)});
-
-    constructor() ERC1155("") Ownable(msg.sender) EIP712("Vault", "1") {
-        DOMAIN_SEPARATOR = keccak256(
-            abi.encode(
-                EIP712_DOMAIN_TYPEHASH,
-                keccak256(bytes(domain_separator_struct.name)),
-                keccak256(bytes(domain_separator_struct.version)),
-                domain_separator_struct.chainId,
-                domain_separator_struct.verifyingContract
-            )
-        );
-    }
+    constructor() ERC1155("") Ownable(msg.sender) EIP712("Vault", "1") {}
 
     /// @notice Creates a new vault using the current schema
     /// @param name The name of the vault
@@ -285,7 +271,7 @@ contract Vault is ERC1155, Ownable, EIP712 {
         uint256 tokenId,
         bytes calldata encryptedCID,
         bool isCIDEncrypted,
-        bytes calldata metadata
+        string calldata metadata
     ) external {
         if (permissions[tokenId][msg.sender] != PERMISSION_WRITE) {
             revert NoWritePermission();
@@ -302,7 +288,7 @@ contract Vault is ERC1155, Ownable, EIP712 {
         uint256 tokenId,
         bytes[] calldata encryptedCIDs,
         bool areCIDsEncrypted,
-        bytes[] calldata metadatas
+        string[] calldata metadatas
     ) external {
         if (permissions[tokenId][msg.sender] != PERMISSION_WRITE) {
             revert NoWritePermission();
@@ -330,7 +316,7 @@ contract Vault is ERC1155, Ownable, EIP712 {
         uint256 tokenId,
         bytes calldata encryptedCID,
         bool isCIDEncrypted,
-        bytes calldata metadata,
+        string calldata metadata,
         uint256 deadline,
         bytes calldata signature
     ) external {
@@ -341,7 +327,9 @@ contract Vault is ERC1155, Ownable, EIP712 {
         }
 
         _verifySignature(
-            keccak256(abi.encode(METADATA_SIGNATURE_TYPEHASH, metadata, tokenId, nonces[owner], deadline)),
+            keccak256(
+                abi.encode(METADATA_SIGNATURE_TYPEHASH, keccak256(bytes(metadata)), tokenId, nonces[owner], deadline)
+            ),
             owner,
             deadline,
             signature
@@ -361,7 +349,7 @@ contract Vault is ERC1155, Ownable, EIP712 {
         uint256 tokenId,
         bytes[] calldata encryptedCIDs,
         bool areCIDsEncrypted,
-        bytes[] calldata metadatas,
+        string[] calldata metadatas,
         uint256 deadline,
         bytes calldata signature
     ) external {
@@ -377,8 +365,21 @@ contract Vault is ERC1155, Ownable, EIP712 {
             revert MismatchedArrayLengths();
         }
 
+        // Build bytes32[] of metadata hashes
+        bytes32[] memory metadataHashes = new bytes32[](metadatas.length);
+        for (uint256 i = 0; i < metadatas.length; i++) {
+            metadataHashes[i] = keccak256(bytes(metadatas[i]));
+        }
         _verifySignature(
-            keccak256(abi.encode(METADATA_ARRAY_SIGNATURE_TYPEHASH, metadatas, tokenId, nonces[owner], deadline)),
+            keccak256(
+                abi.encode(
+                    METADATA_ARRAY_SIGNATURE_TYPEHASH,
+                    keccak256(abi.encodePacked(metadataHashes)),
+                    tokenId,
+                    nonces[owner],
+                    deadline
+                )
+            ),
             owner,
             deadline,
             signature
@@ -436,8 +437,7 @@ contract Vault is ERC1155, Ownable, EIP712 {
     function _verifySignature(bytes32 structHash, address owner, uint256 deadline, bytes calldata signature) internal {
         if (block.timestamp > deadline) revert SignatureExpired();
 
-        // Create a digest of the full batch for EIP-712 signature
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
+        bytes32 digest = _hashTypedDataV4(structHash); // Use OpenZeppelin EIP712 helper
         address signer = ECDSA.recover(digest, signature);
         if (signer != owner) revert InvalidSignature();
 
