@@ -3,163 +3,103 @@ pragma solidity ^0.8.22;
 
 import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import {ISchemaManager} from "./interfaces/ISchemaManager.sol";
+import {VaultSignatureValidator} from "./VaultSignatureValidator.sol";
+import {VaultPermissions} from "./VaultPermissions.sol";
+import {IVault} from "./interfaces/IVault.sol";
+import {IVaultErrors} from "./interfaces/IVaultErrors.sol";
+import {VaultTypehashLib} from "./libs/VaultTypehashLib.sol";
+import {VaultPermissionsLib} from "./libs/VaultPermissionsLib.sol";
 
 /// @title Vault - A tokenized, permissioned content vault system using ERC1155 and EIP-712
-contract Vault is ERC1155, Ownable, EIP712 {
-    using ECDSA for bytes32;
-
+contract Vault is IVault, Ownable, VaultSignatureValidator, VaultPermissions {
     // ----------------------------- //
     //        Constants & Types      //
     // ----------------------------- //
 
-    // Permission Levels: uint8 constants to save gas
-    uint8 public constant PERMISSION_NONE = 0;
-    uint8 public constant PERMISSION_READ = 1;
-    uint8 public constant PERMISSION_WRITE = 2;
-
-    // EIP-712 Domain struct
-    struct EIP712Domain {
-        string name;
-        string version;
-        uint256 chainId;
-        address verifyingContract;
-    }
-
-    // Metadata for each vault
-    struct VaultMetadata {
-        address owner;
-        uint256 currentSchemaIndex;
-    }
-
-    // ----------------------------- //
-    //        Schema Handling        //
-    // ----------------------------- //
-
-    // Mapping of schemas: schemaIndex -> CID to the JSON schema
-    mapping(uint256 => string) public schemaCIDs;
-
-    // Index of the last schema
-    uint256 public lastSchemaIndex;
-
-    // Mapping of nonces: address -> nonce
-    mapping(address => uint256) public nonces;
-
-    event SchemaSet(uint256 indexed index, string schemaCID);
-
-    /// @notice Gets the current nonce for an address
-    /// @param owner The address to check
-    /// @return The current nonce
-    function getNonce(address owner) public view returns (uint256) {
-        return nonces[owner];
-    }
-
-    /// @notice Sets a new schema for content validation
-    /// @param schemaCID The CID of the JSON schema
-    function setSchema(string memory schemaCID) external onlyOwner {
-        lastSchemaIndex++;
-        schemaCIDs[lastSchemaIndex] = schemaCID;
-        emit SchemaSet(lastSchemaIndex, schemaCID);
-    }
-
-    /// @notice Retrieves a schema by its index
-    /// @param index The index of the schema to retrieve
-    /// @return The IPFS hash of the schema
-    function getSchema(uint256 index) public view returns (string memory) {
-        if (index == 0 || index > lastSchemaIndex) revert InvalidSchemaIndex();
-        return schemaCIDs[index];
-    }
-
-    /// @notice Gets the current active schema
-    /// @return The IPFS hash of the current schema
-    function getCurrentSchema() public view returns (string memory) {
-        return schemaCIDs[lastSchemaIndex];
-    }
-
-    // ----------------------------- //
-    //        Vault Management       //
-    // ----------------------------- //
+    // Address of the SchemaManager contract
+    address public schemaManager;
 
     /// @notice The last tokenId used
-    uint256 private lastTokenId;
+    uint256 public lastTokenId;
 
-    // Mapping of vaults: tokenId -> metadata
-    mapping(uint256 => VaultMetadata) public vaults;
+    /// @notice Constructor for the Vault contract
+    /// @param _schemaManager The address of the SchemaManager contract
+    constructor(address _schemaManager) ERC1155("") Ownable(msg.sender) {
+        schemaManager = _schemaManager;
+        DOMAIN_SEPARATOR = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(bytes("Vault")),
+                keccak256(bytes("1")),
+                block.chainid,
+                address(this)
+            )
+        );
+    }
 
-    // Mapping of permissions: tokenId -> address -> permission
-    mapping(uint256 => mapping(address => uint8)) public permissions;
+    /// @notice Sets the ProposalVaultManager contract
+    /// @param _manager The address of the ProposalVaultManager contract
+    /// @custom:error NotOwner if the caller is not the contract owner
+    function setProposalVaultManager(address _manager) external onlyOwner {
+        proposalVaultManager = _manager;
+    }
 
-    event VaultCreated(
-        uint256 indexed tokenId, address indexed owner, string name, string description, string schemaCID
-    );
-    event VaultAccessGranted(address indexed to, uint256 indexed tokenId, uint8 permission);
-    event VaultAccessRevoked(address indexed to, uint256 indexed tokenId);
-    event PermissionUpgraded(address indexed user, uint256 indexed tokenId, uint8 newPermission);
-    event ContentStoredWithMetadata(
-        address indexed sender,
-        uint256 indexed tokenId,
-        bytes encryptedCID,
-        bool isCIDEncrypted,
-        string metadata,
-        bool isMetadataSigned
-    );
-    event VaultTransferred(uint256 indexed tokenId, address indexed from, address indexed to);
+    /// @notice Returns the last tokenId
+    /// @return The last tokenId
+    function getLastTokenId() external view returns (uint256) {
+        return lastTokenId;
+    }
 
-    error NotVaultOwner();
-    error AlreadyHasToken();
-    error NoWritePermission();
-    error InvalidPermission();
-    error CannotRevokeAccessToSelf();
-    error NoAccessToRevoke();
-    error InvalidSchemaIndex();
-    error MismatchedArrayLengths();
-    error VaultDoesNotExist();
-    error InvalidUpgrade();
-    error InvalidSignature();
-    error SignatureExpired();
-    error ZeroAddress();
-    error EmptyArray();
-    error NoSchema();
-
-    bytes32 internal constant METADATA_SIGNATURE_TYPEHASH =
-        keccak256("MetadataHash(string metadata,uint256 tokenId,uint256 nonce,uint256 deadline)");
-    bytes32 internal constant METADATA_ARRAY_SIGNATURE_TYPEHASH =
-        keccak256("MetadataArrayHash(string[] metadata,uint256 tokenId,uint256 nonce,uint256 deadline)");
-    bytes32 internal constant PERMISSION_GRANT_TYPEHASH =
-        keccak256("PermissionGrant(address to,uint256 tokenId,uint8 permission,uint256 nonce,uint256 deadline)");
-    bytes32 internal constant EIP712_DOMAIN_TYPEHASH =
-        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
-
-    constructor() ERC1155("") Ownable(msg.sender) EIP712("Vault", "1") {}
+    /// @notice Increments the last tokenId
+    /// @return The new last tokenId
+    function incrementLastTokenId() external returns (uint256) {
+        lastTokenId++;
+        return lastTokenId;
+    }
 
     /// @notice Creates a new vault using the current schema
     /// @param name The name of the vault
     /// @param description The description of the vault
     function createVault(string memory name, string memory description) external {
-        uint256 schemaIndex = lastSchemaIndex;
-        if (schemaIndex == 0) revert NoSchema();
+        ISchemaManager(schemaManager).setLastSchemaIndexToVault(lastTokenId + 1); // Might revert. Done before incrementing lastTokenId
         lastTokenId++;
 
         _mint(msg.sender, lastTokenId, 1, "");
 
-        vaults[lastTokenId] = VaultMetadata({owner: msg.sender, currentSchemaIndex: schemaIndex});
-        permissions[lastTokenId][msg.sender] = PERMISSION_WRITE;
+        vaultOwner[lastTokenId] = msg.sender;
+        permissions[lastTokenId][msg.sender] = VaultPermissionsLib.PERMISSION_WRITE;
 
-        emit VaultCreated(lastTokenId, msg.sender, name, description, schemaCIDs[schemaIndex]);
+        emit VaultCreated(
+            lastTokenId, msg.sender, name, description, ISchemaManager(schemaManager).getSchemaFromVault(lastTokenId)
+        );
+    }
+
+    /// @notice Assigns a vault from a proposal to a manager
+    /// @param tokenId The vault identifier
+    /// @param masterCrosschainGranter The master crosschain granter address
+    /// @custom:error NotProposalVaultManager if the caller is not the proposal vault manager
+    function assignVaultFromProposal(uint256 tokenId, address masterCrosschainGranter)
+        external
+        onlyProposalVaultManager
+    {
+        vaultOwner[tokenId] = masterCrosschainGranter;
     }
 
     /// @notice Transfers ownership of a vault to a new address
     /// @param tokenId The vault identifier
     /// @param newOwner The new owner address
+    /// @custom:error ZeroAddress if the new owner is the zero address
+    /// @custom:error VaultDoesNotExist if the vault doesn't exist
+    /// @custom:error NotVaultOwner if the caller is not the vault owner
     function transferVaultOwnership(uint256 tokenId, address newOwner) external {
         if (newOwner == address(0)) revert ZeroAddress();
-        VaultMetadata storage vault = vaults[tokenId];
-        if (vault.owner == address(0)) revert VaultDoesNotExist();
-        if (msg.sender != vault.owner) revert NotVaultOwner();
+        if (vaultOwner[tokenId] == address(0)) revert VaultDoesNotExist();
+        if (msg.sender != vaultOwner[tokenId]) revert NotVaultOwner();
 
-        address oldOwner = vault.owner;
-        vault.owner = newOwner;
+        address oldOwner = vaultOwner[tokenId];
+        vaultOwner[tokenId] = newOwner;
 
         emit VaultTransferred(tokenId, oldOwner, newOwner);
     }
@@ -168,16 +108,21 @@ contract Vault is ERC1155, Ownable, EIP712 {
     /// @param to The address to grant access to
     /// @param tokenId The vault identifier
     /// @param permission The permission level to grant
+    /// @custom:error InvalidPermission if the permission is not READ or WRITE
+    /// @custom:error ZeroAddress if the recipient is the zero address
+    /// @custom:error AlreadyHasToken if the recipient already has the token
+    /// @custom:error VaultDoesNotExist if the vault doesn't exist
+    /// @custom:error NotVaultOwner if the caller is not the vault owner
     function grantAccess(address to, uint256 tokenId, uint8 permission) external {
         // Check permissions first
-        if (permission != PERMISSION_READ && permission != PERMISSION_WRITE) {
+        if (permission != VaultPermissionsLib.PERMISSION_READ && permission != VaultPermissionsLib.PERMISSION_WRITE) {
             revert InvalidPermission();
         }
         if (to == address(0)) revert ZeroAddress();
         if (balanceOf(to, tokenId) != 0) revert AlreadyHasToken();
 
         // Then check vault state
-        address owner = vaults[tokenId].owner;
+        address owner = vaultOwner[tokenId];
         if (owner == address(0)) revert VaultDoesNotExist();
         if (msg.sender != owner) revert NotVaultOwner();
 
@@ -193,6 +138,12 @@ contract Vault is ERC1155, Ownable, EIP712 {
     /// @param permission The permission level to grant
     /// @param deadline The deadline for the signature
     /// @param signature The EIP-712 signature
+    /// @custom:error VaultDoesNotExist if the vault doesn't exist
+    /// @custom:error ZeroAddress if the recipient is the zero address
+    /// @custom:error InvalidPermission if the permission is not READ or WRITE
+    /// @custom:error AlreadyHasToken if the recipient already has the token
+    /// @custom:error SignatureExpired if the signature has expired
+    /// @custom:error InvalidSignature if the signature is invalid
     function grantAccessWithSignature(
         address to,
         uint256 tokenId,
@@ -201,16 +152,18 @@ contract Vault is ERC1155, Ownable, EIP712 {
         bytes calldata signature
     ) external {
         // First check if the vault exists and get its owner
-        address owner = vaults[tokenId].owner;
+        address owner = vaultOwner[tokenId];
         if (owner == address(0)) revert VaultDoesNotExist();
         if (to == address(0)) revert ZeroAddress();
-        if (permission != PERMISSION_READ && permission != PERMISSION_WRITE) {
+        if (permission != VaultPermissionsLib.PERMISSION_READ && permission != VaultPermissionsLib.PERMISSION_WRITE) {
             revert InvalidPermission();
         }
         if (balanceOf(to, tokenId) != 0) revert AlreadyHasToken();
 
         _verifySignature(
-            keccak256(abi.encode(PERMISSION_GRANT_TYPEHASH, to, tokenId, permission, nonces[owner], deadline)),
+            keccak256(
+                abi.encode(VaultTypehashLib.PERMISSION_GRANT_TYPEHASH, to, tokenId, permission, nonces[owner], deadline)
+            ),
             owner,
             deadline,
             signature
@@ -222,58 +175,19 @@ contract Vault is ERC1155, Ownable, EIP712 {
         emit VaultAccessGranted(to, tokenId, permission);
     }
 
-    /// @notice Upgrades a user's permission level for a vault
-    /// @param tokenId The vault identifier
-    /// @param user The address of the user
-    /// @param newPermission The new permission level
-    function upgradePermission(uint256 tokenId, address user, uint8 newPermission) external {
-        // Check permissions first
-        if (newPermission != PERMISSION_WRITE) revert InvalidUpgrade();
-        if (user == address(0)) revert ZeroAddress();
-        if (permissions[tokenId][user] != PERMISSION_READ) {
-            revert InvalidUpgrade();
-        }
-
-        // Then check vault state
-        address owner = vaults[tokenId].owner;
-        if (owner == address(0)) revert VaultDoesNotExist();
-        if (msg.sender != owner) revert NotVaultOwner();
-
-        permissions[tokenId][user] = newPermission;
-        emit PermissionUpgraded(user, tokenId, newPermission);
-    }
-
-    /// @notice Revokes access for a user from a vault
-    /// @param tokenId The vault identifier
-    /// @param to The address to revoke access from
-    function revokeAccess(uint256 tokenId, address to) external {
-        if (to == address(0)) revert ZeroAddress();
-        address owner = vaults[tokenId].owner;
-        if (owner == address(0)) revert VaultDoesNotExist();
-        if (msg.sender != owner) revert NotVaultOwner();
-        if (to == owner) revert CannotRevokeAccessToSelf();
-        if (permissions[tokenId][to] == PERMISSION_NONE) {
-            revert NoAccessToRevoke();
-        }
-
-        permissions[tokenId][to] = PERMISSION_NONE;
-        _burn(to, tokenId, 1);
-
-        emit VaultAccessRevoked(to, tokenId);
-    }
-
     /// @notice Stores content with metadata in a vault
     /// @param tokenId The vault identifier
     /// @param encryptedCID The encrypted CID of the content
     /// @param isCIDEncrypted Whether the CID is encrypted
     /// @param metadata The metadata associated with the content
+    /// @custom:error NoWritePermission if the caller doesn't have write permission
     function storeContentWithMetadata(
         uint256 tokenId,
         bytes calldata encryptedCID,
         bool isCIDEncrypted,
         string calldata metadata
     ) external {
-        if (permissions[tokenId][msg.sender] != PERMISSION_WRITE) {
+        if (permissions[tokenId][msg.sender] != VaultPermissionsLib.PERMISSION_WRITE) {
             revert NoWritePermission();
         }
         emit ContentStoredWithMetadata(msg.sender, tokenId, encryptedCID, isCIDEncrypted, metadata, false);
@@ -284,13 +198,16 @@ contract Vault is ERC1155, Ownable, EIP712 {
     /// @param encryptedCIDs Array of encrypted CIDs
     /// @param areCIDsEncrypted Boolean indicating if the CIDs are encrypted
     /// @param metadatas Array of metadatas
+    /// @custom:error NoWritePermission if the caller doesn't have write permission
+    /// @custom:error EmptyArray if either array is empty
+    /// @custom:error MismatchedArrayLengths if the arrays have different lengths
     function storeContentBatch(
         uint256 tokenId,
         bytes[] calldata encryptedCIDs,
         bool areCIDsEncrypted,
         string[] calldata metadatas
     ) external {
-        if (permissions[tokenId][msg.sender] != PERMISSION_WRITE) {
+        if (permissions[tokenId][msg.sender] != VaultPermissionsLib.PERMISSION_WRITE) {
             revert NoWritePermission();
         }
         if (encryptedCIDs.length == 0 || metadatas.length == 0) {
@@ -312,6 +229,10 @@ contract Vault is ERC1155, Ownable, EIP712 {
     /// @param metadata The signed metadata associated with the content
     /// @param deadline The deadline for the signature
     /// @param signature The EIP-712 signature
+    /// @custom:error VaultDoesNotExist if the vault doesn't exist
+    /// @custom:error NoWritePermission if the caller doesn't have write permission
+    /// @custom:error SignatureExpired if the signature has expired
+    /// @custom:error InvalidSignature if the signature is invalid
     function storeContentWithMetadataSigned(
         uint256 tokenId,
         bytes calldata encryptedCID,
@@ -320,15 +241,21 @@ contract Vault is ERC1155, Ownable, EIP712 {
         uint256 deadline,
         bytes calldata signature
     ) external {
-        address owner = vaults[tokenId].owner;
+        address owner = vaultOwner[tokenId];
         if (owner == address(0)) revert VaultDoesNotExist();
-        if (permissions[tokenId][msg.sender] != PERMISSION_WRITE) {
+        if (permissions[tokenId][msg.sender] != VaultPermissionsLib.PERMISSION_WRITE) {
             revert NoWritePermission();
         }
 
         _verifySignature(
             keccak256(
-                abi.encode(METADATA_SIGNATURE_TYPEHASH, keccak256(bytes(metadata)), tokenId, nonces[owner], deadline)
+                abi.encode(
+                    VaultTypehashLib.METADATA_SIGNATURE_TYPEHASH,
+                    keccak256(bytes(metadata)),
+                    tokenId,
+                    nonces[owner],
+                    deadline
+                )
             ),
             owner,
             deadline,
@@ -345,6 +272,12 @@ contract Vault is ERC1155, Ownable, EIP712 {
     /// @param metadatas The signed metadatas associated with the contents
     /// @param deadline The deadline for the signature
     /// @param signature The EIP-712 signature
+    /// @custom:error VaultDoesNotExist if the vault doesn't exist
+    /// @custom:error NoWritePermission if the caller doesn't have write permission
+    /// @custom:error EmptyArray if either array is empty
+    /// @custom:error MismatchedArrayLengths if the arrays have different lengths
+    /// @custom:error SignatureExpired if the signature has expired
+    /// @custom:error InvalidSignature if the signature is invalid
     function storeContentBatchWithSignature(
         uint256 tokenId,
         bytes[] calldata encryptedCIDs,
@@ -353,9 +286,9 @@ contract Vault is ERC1155, Ownable, EIP712 {
         uint256 deadline,
         bytes calldata signature
     ) external {
-        address owner = vaults[tokenId].owner;
+        address owner = vaultOwner[tokenId];
         if (owner == address(0)) revert VaultDoesNotExist();
-        if (permissions[tokenId][msg.sender] != PERMISSION_WRITE) {
+        if (permissions[tokenId][msg.sender] != VaultPermissionsLib.PERMISSION_WRITE) {
             revert NoWritePermission();
         }
         if (encryptedCIDs.length == 0 || metadatas.length == 0) {
@@ -373,7 +306,7 @@ contract Vault is ERC1155, Ownable, EIP712 {
         _verifySignature(
             keccak256(
                 abi.encode(
-                    METADATA_ARRAY_SIGNATURE_TYPEHASH,
+                    VaultTypehashLib.METADATA_ARRAY_SIGNATURE_TYPEHASH,
                     keccak256(abi.encodePacked(metadataHashes)),
                     tokenId,
                     nonces[owner],
@@ -402,45 +335,18 @@ contract Vault is ERC1155, Ownable, EIP712 {
     }
 
     // ----------------------------- //
-    //           View Helpers        //
+    //       Access Control          //
     // ----------------------------- //
 
-    /// @notice Checks if a vault exists
-    /// @param tokenId The vault identifier
-    /// @return bool indicating if the vault exists
-    function vaultExists(uint256 tokenId) public view returns (bool) {
-        return vaults[tokenId].owner != address(0);
+    function mintVaultAccess(address to, uint256 tokenId) external onlyProposalVaultManager {
+        _mint(to, tokenId, 1, "");
     }
 
-    /// @notice Gets the owner of a vault
-    /// @param tokenId The vault identifier
-    /// @return The owner's address
-    function getVaultOwner(uint256 tokenId) public view returns (address) {
-        return vaults[tokenId].owner;
+    function burnVaultAccess(address from, uint256 tokenId) external onlyProposalVaultManager {
+        _burn(from, tokenId, 1);
     }
 
-    /// @notice Gets the permission level for a user in a vault
-    /// @param tokenId The vault identifier
-    /// @param user The user's address
-    /// @return The permission level
-    function getPermission(uint256 tokenId, address user) public view returns (uint8) {
-        return permissions[tokenId][user];
-    }
-
-    /// @notice Gets the current schema index for a vault
-    /// @param tokenId The vault identifier
-    /// @return The current schema index
-    function getVaultSchemaIndex(uint256 tokenId) external view returns (uint256) {
-        return vaults[tokenId].currentSchemaIndex;
-    }
-
-    function _verifySignature(bytes32 structHash, address owner, uint256 deadline, bytes calldata signature) internal {
-        if (block.timestamp > deadline) revert SignatureExpired();
-
-        bytes32 digest = _hashTypedDataV4(structHash); // Use OpenZeppelin EIP712 helper
-        address signer = ECDSA.recover(digest, signature);
-        if (signer != owner) revert InvalidSignature();
-
-        nonces[owner]++;
+    function getVaultBalance(address user, uint256 tokenId) external view onlyProposalVaultManager returns (uint256) {
+        return balanceOf(user, tokenId);
     }
 }

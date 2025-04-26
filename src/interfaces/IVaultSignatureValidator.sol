@@ -8,5 +8,5 @@ interface IVaultSignatureValidator {
 
     // Functions
     function getNonce(address account) external view returns (uint256);
-    function DOMAIN_SEPARATOR() external view returns (bytes32);
+    function getDomainSeparator() external view returns (bytes32);
 }

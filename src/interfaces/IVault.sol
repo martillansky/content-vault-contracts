@@ -27,5 +27,5 @@ interface IVault {
     function getLastTokenId() external view returns (uint256);
     function schemaManager() external view returns (address);
     function incrementLastTokenId() external returns (uint256);
-    function assignVaultFromProposal(uint256 tokenId, address manager) external;
+    function assignVaultFromProposal(uint256 tokenId, address masterCrosschainGranter) external;
 }

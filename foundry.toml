@@ -7,4 +7,8 @@ libs = ["lib"]
 coverage = true
 coverage_threshold = 90
 
+# Gas reports
+gas_reports = ["Vault", "ProposalVaultManager", "SchemaManager", "VaultPermissions", "VaultSignatureValidator"]
+
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
