@@ -19,7 +19,9 @@
         "deploy:mainnet": "dotenv -- cross-var forge script script/Vault.s.sol:VaultScript --fork-url %RPC_URL_MAINNET% --broadcast",
         "verify:sepolia": "dotenv -- cross-var forge verify-contract --chain-id 11155111 %VAULT_ADDRESS_SEPOLIA% src/Vault.sol:Vault --etherscan-api-key %ETHERSCAN_API_KEY%",
         "verify:mainnet": "dotenv -- cross-var forge verify-contract --chain-id 1 %VAULT_ADDRESS_MAINNET% script/Vault.s.sol:Vault --etherscan-api-key %ETHERSCAN_API_KEY%",
-        "verify:sepolia:blockscout": "dotenv -- cross-var forge verify-contract --chain-id 11155111 --verifier blockscout --verifier-url https://eth-sepolia.blockscout.com/api/ %VAULT_ADDRESS_SEPOLIA% src/Vault.sol:Vault"
+        "verify:sepolia:blockscout": "dotenv -- cross-var forge verify-contract --chain-id 11155111 --verifier blockscout --verifier-url https://eth-sepolia.blockscout.com/api/ %VAULT_ADDRESS_SEPOLIA% src/Vault.sol:Vault",
+        "executable-script": "chmod +x script/verify-all.sh",
+        "verify:sepolia:all": "dotenv -- ./script/verify-all.sh"
     },
     "dependencies": {
         "cross-var": "^1.1.0",

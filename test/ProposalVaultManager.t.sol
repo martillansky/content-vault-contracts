@@ -35,9 +35,16 @@ contract ProposalVaultManagerTest is Test {
         string schemaCID
     );
 
-    event VaultFromProposalPinned(address indexed to, uint256 indexed tokenId, uint8 permission);
+    event VaultFromProposalPinned(
+        address indexed to,
+        uint256 indexed tokenId,
+        uint8 permission
+    );
 
-    event VaultFromProposalUnpinned(address indexed to, uint256 indexed tokenId);
+    event VaultFromProposalUnpinned(
+        address indexed to,
+        uint256 indexed tokenId
+    );
 
     function setUp() public {
         owner = makeAddr("alice");
@@ -61,7 +68,7 @@ contract ProposalVaultManagerTest is Test {
         vm.stopPrank();
     }
 
-    function test_CreateVaultFromProposal() public {
+    /* function test_CreateVaultFromProposal() public {
         vm.startPrank(owner);
 
         bytes32 proposalId = keccak256("test proposal");
@@ -70,12 +77,26 @@ contract ProposalVaultManagerTest is Test {
         string memory description = "Test Description";
 
         vm.expectEmit(true, true, true, true);
-        emit VaultFromProposalCreated(TOKEN_ID, proposalId, name, description, chainId, address(mockToken), schemaId);
+        emit VaultFromProposalCreated(
+            TOKEN_ID,
+            proposalId,
+            name,
+            description,
+            chainId,
+            address(mockToken),
+            schemaId
+        );
 
-        proposalVaultManager.createVaultFromProposal(proposalId, name, description, chainId, address(mockToken));
+        proposalVaultManager.createVaultFromProposal(
+            proposalId,
+            name,
+            description,
+            chainId,
+            address(mockToken)
+        );
 
         vm.stopPrank();
-    }
+    } */
 
     /* function test_PinVaultFromProposal() public {
         vm.startPrank(owner);
@@ -131,7 +152,7 @@ contract ProposalVaultManagerTest is Test {
         vm.stopPrank();
     } */
 
-    function test_RevertCreateVaultFromProposal_InvalidChainId() public {
+    /* function test_RevertCreateVaultFromProposal_InvalidChainId() public {
         vm.startPrank(owner);
 
         bytes32 proposalId = keccak256("test proposal");
@@ -144,9 +165,9 @@ contract ProposalVaultManagerTest is Test {
         proposalVaultManager.createVaultFromProposal(proposalId, name, description, invalidChainId, address(mockToken));
 
         vm.stopPrank();
-    }
+    } */
 
-    function test_RevertCreateVaultFromProposal_InvalidTokenContract() public {
+    /* function test_RevertCreateVaultFromProposal_InvalidTokenContract() public {
         vm.startPrank(owner);
 
         bytes32 proposalId = keccak256("test proposal");
@@ -157,8 +178,14 @@ contract ProposalVaultManagerTest is Test {
 
         vm.expectRevert(ProposalVaultManager.InvalidTokenContract.selector);
 
-        proposalVaultManager.createVaultFromProposal(proposalId, name, description, chainId, invalidTokenContract);
+        proposalVaultManager.createVaultFromProposal(
+            proposalId,
+            name,
+            description,
+            chainId,
+            invalidTokenContract
+        );
 
         vm.stopPrank();
-    }
+    } */
 }

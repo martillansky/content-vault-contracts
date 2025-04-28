@@ -6,6 +6,8 @@ import {console2} from "forge-std/console2.sol";
 import {Vault} from "../src/Vault.sol";
 import {SchemaManager} from "../src/SchemaManager.sol";
 import {ProposalVaultManager} from "../src/ProposalVaultManager.sol";
+import {MasterCrosschainGranter} from "../src/MasterCrosschainGranter.sol";
+import {MasterGateway} from "../src/MasterGateway.sol";
 
 /// @dev Deploys the Vault contract to the selected network.
 /// @dev Deploys the ProposalVaultManager contract to the selected network.
@@ -14,7 +16,6 @@ contract VaultScript is Script {
         bool isLocal = vm.envOr("IS_LOCAL", false);
 
         if (isLocal) {
-            //address sender = vm.envAddress("ANVIL_SENDER");
             vm.startBroadcast(vm.envUint("ANVIL_PRIVATE_KEY"));
         } else {
             uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
@@ -23,27 +24,38 @@ contract VaultScript is Script {
 
         SchemaManager schemaManager = new SchemaManager();
         Vault vault = new Vault(address(schemaManager));
-        ProposalVaultManager proposalVaultManager = new ProposalVaultManager(address(vault));
+        ProposalVaultManager proposalVaultManager = new ProposalVaultManager(
+            address(vault)
+        );
         vault.setProposalVaultManager(address(proposalVaultManager));
+        MasterCrosschainGranter masterCrosschainGranter = new MasterCrosschainGranter(
+                address(proposalVaultManager)
+            );
+        proposalVaultManager.setVaultMasterCrosschainGranter(
+            address(masterCrosschainGranter)
+        );
+        address amBridgeAddress = vm.envAddress("MAINNET_BRIDGE");
+        MasterGateway masterGateway = new MasterGateway(
+            amBridgeAddress,
+            address(masterCrosschainGranter)
+        );
+        masterCrosschainGranter.setGateway(address(masterGateway));
 
-        // ------------------------------------------------------------------------
-        // TODO: MasterCrosschainGranter.sol
-        // This must be the CrosschainGranter contract deployed on mainnet.
-        // It communicates with other CrosschainGranter contracts deployed on
-        // other chains. The MasterCrosschainGranter contract is the owner of
-        // all the vaults created from snapshot proposals. It has the ability to
-        // grant permission to vaults from proposal to any user that has
-        // positive balance of the token required by the proposal which grants
-        // voting power to the user.
-        // ------------------------------------------------------------------------
-        address wallet9 = vm.envAddress("ANVIL_WALLET_9");
-        proposalVaultManager.setVaultMasterCrosschainGranter(wallet9);
-
-        schemaManager.setSchema("bafkreicdjjyjxjw3esxfztkg5j6uwwmayord4c3nmyzquhmgurhtzubcm4");
+        schemaManager.setSchema(
+            "bafkreicdjjyjxjw3esxfztkg5j6uwwmayord4c3nmyzquhmgurhtzubcm4"
+        );
 
         console2.log("SchemaManager deployed to", address(schemaManager));
         console2.log("Vault deployed to", address(vault));
-        console2.log("ProposalVaultManager deployed to", address(proposalVaultManager));
+        console2.log(
+            "ProposalVaultManager deployed to",
+            address(proposalVaultManager)
+        );
+        console2.log(
+            "MasterCrosschainGranter deployed to",
+            address(masterCrosschainGranter)
+        );
+        console2.log("MasterGateway deployed to", address(masterGateway));
 
         vm.stopBroadcast();
     }

@@ -30,7 +30,9 @@ contract Vault is IVault, Ownable, VaultSignatureValidator, VaultPermissions {
         schemaManager = _schemaManager;
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(
-                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(
+                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                ),
                 keccak256(bytes("Vault")),
                 keccak256(bytes("1")),
                 block.chainid,
@@ -62,28 +64,38 @@ contract Vault is IVault, Ownable, VaultSignatureValidator, VaultPermissions {
     /// @notice Creates a new vault using the current schema
     /// @param name The name of the vault
     /// @param description The description of the vault
-    function createVault(string memory name, string memory description) external {
-        ISchemaManager(schemaManager).setLastSchemaIndexToVault(lastTokenId + 1); // Might revert. Done before incrementing lastTokenId
+    function createVault(
+        string memory name,
+        string memory description
+    ) external {
+        ISchemaManager(schemaManager).setLastSchemaIndexToVault(
+            lastTokenId + 1
+        ); // Might revert. Done before incrementing lastTokenId
         lastTokenId++;
 
         _mint(msg.sender, lastTokenId, 1, "");
 
         vaultOwner[lastTokenId] = msg.sender;
-        permissions[lastTokenId][msg.sender] = VaultPermissionsLib.PERMISSION_WRITE;
+        permissions[lastTokenId][msg.sender] = VaultPermissionsLib
+            .PERMISSION_WRITE;
 
         emit VaultCreated(
-            lastTokenId, msg.sender, name, description, ISchemaManager(schemaManager).getSchemaFromVault(lastTokenId)
+            lastTokenId,
+            msg.sender,
+            name,
+            description,
+            ISchemaManager(schemaManager).getSchemaFromVault(lastTokenId)
         );
     }
 
-    /// @notice Assigns a vault from a proposal to a manager
+    /// @notice Assigns a vault from a proposal ownership to a manager
     /// @param tokenId The vault identifier
     /// @param masterCrosschainGranter The master crosschain granter address
     /// @custom:error NotProposalVaultManager if the caller is not the proposal vault manager
-    function assignVaultFromProposal(uint256 tokenId, address masterCrosschainGranter)
-        external
-        onlyProposalVaultManager
-    {
+    function assignVaultFromProposalOwnership(
+        uint256 tokenId,
+        address masterCrosschainGranter
+    ) external onlyProposalVaultManager {
         vaultOwner[tokenId] = masterCrosschainGranter;
     }
 
@@ -93,7 +105,10 @@ contract Vault is IVault, Ownable, VaultSignatureValidator, VaultPermissions {
     /// @custom:error ZeroAddress if the new owner is the zero address
     /// @custom:error VaultDoesNotExist if the vault doesn't exist
     /// @custom:error NotVaultOwner if the caller is not the vault owner
-    function transferVaultOwnership(uint256 tokenId, address newOwner) external {
+    function transferVaultOwnership(
+        uint256 tokenId,
+        address newOwner
+    ) external {
         if (newOwner == address(0)) revert ZeroAddress();
         if (vaultOwner[tokenId] == address(0)) revert VaultDoesNotExist();
         if (msg.sender != vaultOwner[tokenId]) revert NotVaultOwner();
@@ -113,9 +128,16 @@ contract Vault is IVault, Ownable, VaultSignatureValidator, VaultPermissions {
     /// @custom:error AlreadyHasToken if the recipient already has the token
     /// @custom:error VaultDoesNotExist if the vault doesn't exist
     /// @custom:error NotVaultOwner if the caller is not the vault owner
-    function grantAccess(address to, uint256 tokenId, uint8 permission) external {
+    function grantAccess(
+        address to,
+        uint256 tokenId,
+        uint8 permission
+    ) external {
         // Check permissions first
-        if (permission != VaultPermissionsLib.PERMISSION_READ && permission != VaultPermissionsLib.PERMISSION_WRITE) {
+        if (
+            permission != VaultPermissionsLib.PERMISSION_READ &&
+            permission != VaultPermissionsLib.PERMISSION_WRITE
+        ) {
             revert InvalidPermission();
         }
         if (to == address(0)) revert ZeroAddress();
@@ -155,14 +177,24 @@ contract Vault is IVault, Ownable, VaultSignatureValidator, VaultPermissions {
         address owner = vaultOwner[tokenId];
         if (owner == address(0)) revert VaultDoesNotExist();
         if (to == address(0)) revert ZeroAddress();
-        if (permission != VaultPermissionsLib.PERMISSION_READ && permission != VaultPermissionsLib.PERMISSION_WRITE) {
+        if (
+            permission != VaultPermissionsLib.PERMISSION_READ &&
+            permission != VaultPermissionsLib.PERMISSION_WRITE
+        ) {
             revert InvalidPermission();
         }
         if (balanceOf(to, tokenId) != 0) revert AlreadyHasToken();
 
         _verifySignature(
             keccak256(
-                abi.encode(VaultTypehashLib.PERMISSION_GRANT_TYPEHASH, to, tokenId, permission, nonces[owner], deadline)
+                abi.encode(
+                    VaultTypehashLib.PERMISSION_GRANT_TYPEHASH,
+                    to,
+                    tokenId,
+                    permission,
+                    nonces[owner],
+                    deadline
+                )
             ),
             owner,
             deadline,
@@ -187,10 +219,20 @@ contract Vault is IVault, Ownable, VaultSignatureValidator, VaultPermissions {
         bool isCIDEncrypted,
         string calldata metadata
     ) external {
-        if (permissions[tokenId][msg.sender] != VaultPermissionsLib.PERMISSION_WRITE) {
+        if (
+            permissions[tokenId][msg.sender] !=
+            VaultPermissionsLib.PERMISSION_WRITE
+        ) {
             revert NoWritePermission();
         }
-        emit ContentStoredWithMetadata(msg.sender, tokenId, encryptedCID, isCIDEncrypted, metadata, false);
+        emit ContentStoredWithMetadata(
+            msg.sender,
+            tokenId,
+            encryptedCID,
+            isCIDEncrypted,
+            metadata,
+            false
+        );
     }
 
     /// @notice Stores multiple content items with metadata in a vault
@@ -207,7 +249,10 @@ contract Vault is IVault, Ownable, VaultSignatureValidator, VaultPermissions {
         bool areCIDsEncrypted,
         string[] calldata metadatas
     ) external {
-        if (permissions[tokenId][msg.sender] != VaultPermissionsLib.PERMISSION_WRITE) {
+        if (
+            permissions[tokenId][msg.sender] !=
+            VaultPermissionsLib.PERMISSION_WRITE
+        ) {
             revert NoWritePermission();
         }
         if (encryptedCIDs.length == 0 || metadatas.length == 0) {
@@ -218,7 +263,14 @@ contract Vault is IVault, Ownable, VaultSignatureValidator, VaultPermissions {
         }
 
         for (uint256 i = 0; i < encryptedCIDs.length; ++i) {
-            emit ContentStoredWithMetadata(msg.sender, tokenId, encryptedCIDs[i], areCIDsEncrypted, metadatas[i], false);
+            emit ContentStoredWithMetadata(
+                msg.sender,
+                tokenId,
+                encryptedCIDs[i],
+                areCIDsEncrypted,
+                metadatas[i],
+                false
+            );
         }
     }
 
@@ -243,7 +295,10 @@ contract Vault is IVault, Ownable, VaultSignatureValidator, VaultPermissions {
     ) external {
         address owner = vaultOwner[tokenId];
         if (owner == address(0)) revert VaultDoesNotExist();
-        if (permissions[tokenId][msg.sender] != VaultPermissionsLib.PERMISSION_WRITE) {
+        if (
+            permissions[tokenId][msg.sender] !=
+            VaultPermissionsLib.PERMISSION_WRITE
+        ) {
             revert NoWritePermission();
         }
 
@@ -262,7 +317,14 @@ contract Vault is IVault, Ownable, VaultSignatureValidator, VaultPermissions {
             signature
         );
 
-        emit ContentStoredWithMetadata(msg.sender, tokenId, encryptedCID, isCIDEncrypted, metadata, true);
+        emit ContentStoredWithMetadata(
+            msg.sender,
+            tokenId,
+            encryptedCID,
+            isCIDEncrypted,
+            metadata,
+            true
+        );
     }
 
     /// @notice Stores content with metadata and EIP-712 signature
@@ -288,7 +350,10 @@ contract Vault is IVault, Ownable, VaultSignatureValidator, VaultPermissions {
     ) external {
         address owner = vaultOwner[tokenId];
         if (owner == address(0)) revert VaultDoesNotExist();
-        if (permissions[tokenId][msg.sender] != VaultPermissionsLib.PERMISSION_WRITE) {
+        if (
+            permissions[tokenId][msg.sender] !=
+            VaultPermissionsLib.PERMISSION_WRITE
+        ) {
             revert NoWritePermission();
         }
         if (encryptedCIDs.length == 0 || metadatas.length == 0) {
@@ -319,7 +384,14 @@ contract Vault is IVault, Ownable, VaultSignatureValidator, VaultPermissions {
         );
 
         for (uint256 i = 0; i < encryptedCIDs.length; i++) {
-            emit ContentStoredWithMetadata(msg.sender, tokenId, encryptedCIDs[i], areCIDsEncrypted, metadatas[i], true);
+            emit ContentStoredWithMetadata(
+                msg.sender,
+                tokenId,
+                encryptedCIDs[i],
+                areCIDsEncrypted,
+                metadatas[i],
+                true
+            );
         }
     }
 
@@ -338,15 +410,24 @@ contract Vault is IVault, Ownable, VaultSignatureValidator, VaultPermissions {
     //       Access Control          //
     // ----------------------------- //
 
-    function mintVaultAccess(address to, uint256 tokenId) external onlyProposalVaultManager {
+    function mintVaultAccess(
+        address to,
+        uint256 tokenId
+    ) external onlyProposalVaultManager {
         _mint(to, tokenId, 1, "");
     }
 
-    function burnVaultAccess(address from, uint256 tokenId) external onlyProposalVaultManager {
+    function burnVaultAccess(
+        address from,
+        uint256 tokenId
+    ) external onlyProposalVaultManager {
         _burn(from, tokenId, 1);
     }
 
-    function getVaultBalance(address user, uint256 tokenId) external view onlyProposalVaultManager returns (uint256) {
+    function getVaultBalance(
+        address user,
+        uint256 tokenId
+    ) external view onlyProposalVaultManager returns (uint256) {
         return balanceOf(user, tokenId);
     }
 }
