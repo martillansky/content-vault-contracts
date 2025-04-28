@@ -9,11 +9,7 @@ import {IMasterCrosschainGranter} from "./interfaces/IMasterCrosschainGranter.so
 import {IForeignCrosschainGranter} from "./interfaces/IForeignCrosschainGranter.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract MasterCrosschainGranter is
-    ICrosschainGranter,
-    IMasterCrosschainGranter,
-    Ownable
-{
+contract MasterCrosschainGranter is ICrosschainGranter, IMasterCrosschainGranter, Ownable {
     /// @notice The address of the master gateway
     address public masterGateway;
 
@@ -48,21 +44,19 @@ contract MasterCrosschainGranter is
         uint256 chainId,
         address tokenContract
     ) external {
-        if (!ERC20TokenProposalLib.isValidChainId(chainId))
+        if (!ERC20TokenProposalLib.isValidChainId(chainId)) {
             revert InvalidChainId();
+        }
         uint256 thisChainId = block.chainid;
-        if (chainId == thisChainId)
-            if (!ERC20TokenProposalLib.isValidTokenContract(tokenContract))
+        if (chainId == thisChainId) {
+            if (!ERC20TokenProposalLib.isValidTokenContract(tokenContract)) {
                 revert InvalidTokenContract();
-            else if (!ERC20TokenProposalLib.isValidTokenAddress(tokenContract))
+            } else if (!ERC20TokenProposalLib.isValidTokenAddress(tokenContract)) {
                 revert InvalidTokenAddress();
+            }
+        }
 
-        ProposalVaultManager(proposalVaultManager).createVaultFromProposal(
-            proposalId,
-            name,
-            description,
-            msg.sender
-        );
+        ProposalVaultManager(proposalVaultManager).createVaultFromProposal(proposalId, name, description, msg.sender);
 
         if (chainId != thisChainId) {
             address gateway = IMasterGateway(masterGateway).getGateway(chainId);
@@ -70,22 +64,14 @@ contract MasterCrosschainGranter is
             IMasterGateway(gateway).sendMessageToForeignGateway(
                 chainId,
                 abi.encodeWithSelector(
-                    IForeignCrosschainGranter
-                        .registerVaultFromProposalOnTokenHomeChain
-                        .selector,
+                    IForeignCrosschainGranter.registerVaultFromProposalOnTokenHomeChain.selector,
                     proposalId,
                     tokenContract
                 )
             );
         } else {
-            proposalIdToVault[proposalId] = ProposalMetadata({
-                proposalId: proposalId,
-                tokenContract: tokenContract
-            });
-            emit VaultFromProposalRegisteredOnHomeChain(
-                proposalId,
-                tokenContract
-            );
+            proposalIdToVault[proposalId] = ProposalMetadata({proposalId: proposalId, tokenContract: tokenContract});
+            emit VaultFromProposalRegisteredOnHomeChain(proposalId, tokenContract);
         }
     }
 
@@ -98,20 +84,15 @@ contract MasterCrosschainGranter is
     /// proposal's strategy token
     /// @param proposalId The id of the proposal
     /// @param user The user to upgrade the permission for
-    function upgradePermissionVaultFromProposal(
-        bytes32 proposalId,
-        address user
-    ) external {
+    function upgradePermissionVaultFromProposal(bytes32 proposalId, address user) external {
         if (msg.sender != masterGateway) revert InvalidSender();
-        ProposalMetadata memory proposalMetadata = proposalIdToVault[
-            proposalId
-        ];
+        ProposalMetadata memory proposalMetadata = proposalIdToVault[proposalId];
         address tokenContract = proposalMetadata.tokenContract;
         if (tokenContract == address(0)) revert VaultFromProposalDoesNotExist();
-        if (ERC20TokenProposalLib.balanceOf(tokenContract, user) == 0)
+        if (ERC20TokenProposalLib.balanceOf(tokenContract, user) == 0) {
             revert NotEnoughBalance();
-        ProposalVaultManager(proposalVaultManager)
-            .upgradePermissionVaultFromProposal(proposalId, user);
+        }
+        ProposalVaultManager(proposalVaultManager).upgradePermissionVaultFromProposal(proposalId, user);
         emit VaultFromProposalPermissionUpgraded(proposalId, user);
     }
 }

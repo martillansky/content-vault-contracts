@@ -40,30 +40,19 @@ contract ProposalVaultManager is Ownable, IVaultErrors {
     /// @param description The description of the vault
     /// @param schemaCID The CID of the schema used for the vault
     event VaultFromProposalCreated(
-        uint256 indexed tokenId,
-        bytes32 indexed proposalId,
-        string name,
-        string description,
-        string schemaCID
+        uint256 indexed tokenId, bytes32 indexed proposalId, string name, string description, string schemaCID
     );
 
     /// @notice Emitted when a vault is pinned to a user
     /// @param to The address of the user the vault is pinned to
     /// @param tokenId The ID of the vault token
     /// @param permission The permission level granted
-    event VaultFromProposalPinned(
-        address indexed to,
-        uint256 indexed tokenId,
-        uint8 permission
-    );
+    event VaultFromProposalPinned(address indexed to, uint256 indexed tokenId, uint8 permission);
 
     /// @notice Emitted when a vault is unpinned from a user
     /// @param to The address of the user the vault is unpinned from
     /// @param tokenId The ID of the vault token
-    event VaultFromProposalUnpinned(
-        address indexed to,
-        uint256 indexed tokenId
-    );
+    event VaultFromProposalUnpinned(address indexed to, uint256 indexed tokenId);
 
     // ----------------------------- //
     //        Modifiers              //
@@ -92,9 +81,7 @@ contract ProposalVaultManager is Ownable, IVaultErrors {
     /// @notice Sets the master crosschain granter
     /// @dev Only callable by the contract owner
     /// @param masterGranter The address of the master crosschain granter
-    function setVaultMasterCrosschainGranter(
-        address masterGranter
-    ) external onlyOwner {
+    function setVaultMasterCrosschainGranter(address masterGranter) external onlyOwner {
         vaultMasterCrosschainGranter = masterGranter;
     }
 
@@ -103,27 +90,20 @@ contract ProposalVaultManager is Ownable, IVaultErrors {
     /// @param proposalId The proposalId of the vault
     /// @param name The name of the vault
     /// @param description The description of the vault
-    function createVaultFromProposal(
-        bytes32 proposalId,
-        string memory name,
-        string memory description,
-        address user
-    ) external onlyVaultMasterCrosschainGranter {
+    function createVaultFromProposal(bytes32 proposalId, string memory name, string memory description, address user)
+        external
+        onlyVaultMasterCrosschainGranter
+    {
         uint256 lastTokenId = vaultCore.getLastTokenId();
 
         // As it might revert, it is done before incrementing lastTokenId
-        ISchemaManager(vaultCore.schemaManager()).setLastSchemaIndexToVault(
-            lastTokenId + 1
-        );
+        ISchemaManager(vaultCore.schemaManager()).setLastSchemaIndexToVault(lastTokenId + 1);
         uint256 newTokenId = vaultCore.incrementLastTokenId();
 
         vaultAccessControl.mintVaultAccess(user, newTokenId);
 
         // sets vault owner to master crosschain granter
-        vaultCore.assignVaultFromProposalOwnership(
-            newTokenId,
-            vaultMasterCrosschainGranter
-        );
+        vaultCore.assignVaultFromProposalOwnership(newTokenId, vaultMasterCrosschainGranter);
 
         proposalIdToVault[proposalId] = newTokenId;
 
@@ -140,15 +120,9 @@ contract ProposalVaultManager is Ownable, IVaultErrors {
             description,
             /* chainId,
             tokenContract, */
-            ISchemaManager(vaultCore.schemaManager()).getSchemaFromVault(
-                newTokenId
-            )
+            ISchemaManager(vaultCore.schemaManager()).getSchemaFromVault(newTokenId)
         );
-        emit VaultFromProposalPinned(
-            msg.sender,
-            newTokenId,
-            vaultPermissions.getPermissionRead()
-        );
+        emit VaultFromProposalPinned(msg.sender, newTokenId, vaultPermissions.getPermissionRead());
     }
 
     /// @notice Pins a vault from a proposal to the caller
@@ -158,10 +132,7 @@ contract ProposalVaultManager is Ownable, IVaultErrors {
     /// @custom:error VaultDoesNotExist if the vault doesn't exist
     /// @custom:error ZeroAddress if the user address is zero
     /// @custom:error VaultAlreadyPinned if the vault is already pinned, user already has permission
-    function pinVaultFromProposal(
-        bytes32 proposalId,
-        address user
-    ) external onlyVaultMasterCrosschainGranter {
+    function pinVaultFromProposal(bytes32 proposalId, address user) external onlyVaultMasterCrosschainGranter {
         uint256 tokenId = proposalIdToVault[proposalId];
         if (tokenId == 0) revert VaultDoesNotExist();
 
@@ -172,11 +143,7 @@ contract ProposalVaultManager is Ownable, IVaultErrors {
 
         vaultAccessControl.mintVaultAccess(user, tokenId);
         vaultPermissions.setPermissionRead(tokenId, user);
-        emit VaultFromProposalPinned(
-            user,
-            tokenId,
-            vaultPermissions.getPermissionRead()
-        );
+        emit VaultFromProposalPinned(user, tokenId, vaultPermissions.getPermissionRead());
     }
 
     /// @notice Unpins a vault from proposal to the caller
@@ -186,10 +153,7 @@ contract ProposalVaultManager is Ownable, IVaultErrors {
     /// @custom:error ZeroAddress if the user address is zero
     /// @custom:error NoAccessToRevoke if the user has no access to revoke
     /// @custom:error NotVaultOwner if the caller is not the master crosschain granter
-    function unpinVaultFromProposal(
-        bytes32 proposalId,
-        address user
-    ) external onlyVaultMasterCrosschainGranter {
+    function unpinVaultFromProposal(bytes32 proposalId, address user) external onlyVaultMasterCrosschainGranter {
         uint256 tokenId = proposalIdToVault[proposalId];
         if (tokenId == 0) revert VaultDoesNotExist();
 
@@ -216,10 +180,10 @@ contract ProposalVaultManager is Ownable, IVaultErrors {
     /// @custom:error ZeroAddress if the user address is zero
     /// @custom:error InvalidUpgrade if the user doesn't have read permission
     /// @custom:error NotMasterCrosschainGranter if the caller is not the master crosschain granter
-    function upgradePermissionVaultFromProposal(
-        bytes32 proposalId,
-        address user
-    ) external onlyVaultMasterCrosschainGranter {
+    function upgradePermissionVaultFromProposal(bytes32 proposalId, address user)
+        external
+        onlyVaultMasterCrosschainGranter
+    {
         uint256 tokenId = proposalIdToVault[proposalId];
         if (tokenId == 0) revert VaultDoesNotExist();
 

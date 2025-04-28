@@ -9,11 +9,7 @@ import {IForeignCrosschainGranter} from "./interfaces/IForeignCrosschainGranter.
 import {IForeignGateway} from "./interfaces/IForeignGateway.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract ForeignCrosschainGranter is
-    ICrosschainGranter,
-    IForeignCrosschainGranter,
-    Ownable
-{
+contract ForeignCrosschainGranter is ICrosschainGranter, IForeignCrosschainGranter, Ownable {
     /// @notice The gateway contract to communicate with the home chain's
     /// gateway instance and with the home chain's MasterCrosschainGranter
     address public foreignGateway;
@@ -34,27 +30,19 @@ contract ForeignCrosschainGranter is
     /// proposal to the home chain's MasterCrosschainGranter
     /// @param proposalId The id of the proposal
     function upgradePermissionVaultFromProposal(bytes32 proposalId) external {
-        ProposalMetadata memory proposalMetadata = proposalIdToVault[
-            proposalId
-        ];
+        ProposalMetadata memory proposalMetadata = proposalIdToVault[proposalId];
         address tokenContract = proposalMetadata.tokenContract;
         if (tokenContract == address(0)) revert VaultFromProposalDoesNotExist();
-        if (ERC20TokenProposalLib.balanceOf(tokenContract, msg.sender) == 0)
+        if (ERC20TokenProposalLib.balanceOf(tokenContract, msg.sender) == 0) {
             revert NotEnoughBalance();
+        }
         if (foreignGateway == address(0)) revert GatewayDoesNotExist();
         IForeignGateway(foreignGateway).sendMessageToVaultsHomeChain(
             abi.encodeWithSelector(
-                IMasterCrosschainGranter
-                    .upgradePermissionVaultFromProposal
-                    .selector,
-                proposalId,
-                msg.sender
+                IMasterCrosschainGranter.upgradePermissionVaultFromProposal.selector, proposalId, msg.sender
             )
         );
-        emit VaultFromProposalPermissionUpgradeRequested(
-            proposalId,
-            msg.sender
-        );
+        emit VaultFromProposalPermissionUpgradeRequested(proposalId, msg.sender);
     }
 
     // ----------------------------------------------------
@@ -65,19 +53,15 @@ contract ForeignCrosschainGranter is
     /// chain's MasterCrosschainGranter on the token's home chain
     /// @param proposalId The id of the proposal
     /// @param tokenContract The address of the token contract
-    function registerVaultFromProposalOnTokenHomeChain(
-        bytes32 proposalId,
-        address tokenContract
-    ) external {
+    function registerVaultFromProposalOnTokenHomeChain(bytes32 proposalId, address tokenContract) external {
         if (msg.sender != foreignGateway) revert InvalidSender();
-        if (!ERC20TokenProposalLib.isValidTokenContract(tokenContract))
+        if (!ERC20TokenProposalLib.isValidTokenContract(tokenContract)) {
             revert InvalidTokenContract();
-        if (proposalIdToVault[proposalId].tokenContract != address(0))
+        }
+        if (proposalIdToVault[proposalId].tokenContract != address(0)) {
             revert ProposalAlreadyRegistered();
-        proposalIdToVault[proposalId] = ProposalMetadata({
-            proposalId: proposalId,
-            tokenContract: tokenContract
-        });
+        }
+        proposalIdToVault[proposalId] = ProposalMetadata({proposalId: proposalId, tokenContract: tokenContract});
         emit VaultFromProposalRegisteredOnHomeChain(proposalId, tokenContract);
     }
 }

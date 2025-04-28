@@ -24,37 +24,20 @@ contract VaultScript is Script {
 
         SchemaManager schemaManager = new SchemaManager();
         Vault vault = new Vault(address(schemaManager));
-        ProposalVaultManager proposalVaultManager = new ProposalVaultManager(
-            address(vault)
-        );
+        ProposalVaultManager proposalVaultManager = new ProposalVaultManager(address(vault));
         vault.setProposalVaultManager(address(proposalVaultManager));
-        MasterCrosschainGranter masterCrosschainGranter = new MasterCrosschainGranter(
-                address(proposalVaultManager)
-            );
-        proposalVaultManager.setVaultMasterCrosschainGranter(
-            address(masterCrosschainGranter)
-        );
+        MasterCrosschainGranter masterCrosschainGranter = new MasterCrosschainGranter(address(proposalVaultManager));
+        proposalVaultManager.setVaultMasterCrosschainGranter(address(masterCrosschainGranter));
         address amBridgeAddress = vm.envAddress("MAINNET_BRIDGE");
-        MasterGateway masterGateway = new MasterGateway(
-            amBridgeAddress,
-            address(masterCrosschainGranter)
-        );
+        MasterGateway masterGateway = new MasterGateway(amBridgeAddress, address(masterCrosschainGranter));
         masterCrosschainGranter.setGateway(address(masterGateway));
 
-        schemaManager.setSchema(
-            "bafkreicdjjyjxjw3esxfztkg5j6uwwmayord4c3nmyzquhmgurhtzubcm4"
-        );
+        schemaManager.setSchema("bafkreicdjjyjxjw3esxfztkg5j6uwwmayord4c3nmyzquhmgurhtzubcm4");
 
         console2.log("SchemaManager deployed to", address(schemaManager));
         console2.log("Vault deployed to", address(vault));
-        console2.log(
-            "ProposalVaultManager deployed to",
-            address(proposalVaultManager)
-        );
-        console2.log(
-            "MasterCrosschainGranter deployed to",
-            address(masterCrosschainGranter)
-        );
+        console2.log("ProposalVaultManager deployed to", address(proposalVaultManager));
+        console2.log("MasterCrosschainGranter deployed to", address(masterCrosschainGranter));
         console2.log("MasterGateway deployed to", address(masterGateway));
 
         vm.stopBroadcast();

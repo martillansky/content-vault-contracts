@@ -21,11 +21,9 @@ contract ForeignGateway is IGateway, IForeignGateway, Ownable {
     /// @notice Constructor
     /// @param _masterGateway The address of the master gateway in the home chain
     /// @param _amBridgeAddress The address of the foreign chain's bridge instance
-    constructor(
-        address _masterGateway,
-        address _amBridgeAddress,
-        address _foreignCrosschainGranter
-    ) Ownable(msg.sender) {
+    constructor(address _masterGateway, address _amBridgeAddress, address _foreignCrosschainGranter)
+        Ownable(msg.sender)
+    {
         masterGateway = _masterGateway;
         amBridgeAddress = _amBridgeAddress;
         foreignCrosschainGranter = _foreignCrosschainGranter;
@@ -37,9 +35,7 @@ contract ForeignGateway is IGateway, IForeignGateway, Ownable {
         if (msg.sender != foreignCrosschainGranter) revert InvalidSender();
         IBridge amBridge = IBridge(amBridgeAddress);
         amBridge.requireToPassMessage(
-            masterGateway,
-            abi.encodeCall(this.receiveMessage, (_message)),
-            amBridge.maxGasPerTx()
+            masterGateway, abi.encodeCall(this.receiveMessage, (_message)), amBridge.maxGasPerTx()
         );
     }
 
@@ -47,7 +43,7 @@ contract ForeignGateway is IGateway, IForeignGateway, Ownable {
     /// @param _message The message to receive
     function receiveMessage(bytes memory _message) external {
         if (msg.sender != masterGateway) revert InvalidSender();
-        (bool success, ) = foreignCrosschainGranter.call(_message);
+        (bool success,) = foreignCrosschainGranter.call(_message);
         if (!success) revert MessageCallFailed();
     }
 }

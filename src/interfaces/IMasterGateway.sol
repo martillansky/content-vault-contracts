@@ -12,10 +12,7 @@ interface IMasterGateway {
 
     /// @notice Sends a message to another chain's gateway instance
     /// @param _message The message to send
-    function sendMessageToForeignGateway(
-        uint256 chainId,
-        bytes memory _message
-    ) external;
+    function sendMessageToForeignGateway(uint256 chainId, bytes memory _message) external;
 
     /// @notice Gets the gateway for a given chainId
     /// @param chainId The chainId of the foreign chain

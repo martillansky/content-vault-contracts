@@ -35,16 +35,9 @@ contract ProposalVaultManagerTest is Test {
         string schemaCID
     );
 
-    event VaultFromProposalPinned(
-        address indexed to,
-        uint256 indexed tokenId,
-        uint8 permission
-    );
+    event VaultFromProposalPinned(address indexed to, uint256 indexed tokenId, uint8 permission);
 
-    event VaultFromProposalUnpinned(
-        address indexed to,
-        uint256 indexed tokenId
-    );
+    event VaultFromProposalUnpinned(address indexed to, uint256 indexed tokenId);
 
     function setUp() public {
         owner = makeAddr("alice");

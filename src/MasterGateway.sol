@@ -24,10 +24,7 @@ contract MasterGateway is IGateway, IMasterGateway, Ownable {
     /// @notice Constructor
     /// @param _amBridgeAddress The address of the home chain's bridge instance
     /// @param _masterCrosschainGranter The address of the master crosschain granter instance
-    constructor(
-        address _amBridgeAddress,
-        address _masterCrosschainGranter
-    ) Ownable(msg.sender) {
+    constructor(address _amBridgeAddress, address _masterCrosschainGranter) Ownable(msg.sender) {
         amBridgeAddress = _amBridgeAddress;
         masterCrosschainGranter = _masterCrosschainGranter;
     }
@@ -35,10 +32,7 @@ contract MasterGateway is IGateway, IMasterGateway, Ownable {
     /// @notice Registers a foreign gateway for a given chainId
     /// @param chainId The chainId of the foreign chain
     /// @param foreignGateway The address of the foreign chain's gateway instance
-    function registerForeignGateway(
-        uint256 chainId,
-        address foreignGateway
-    ) external onlyOwner {
+    function registerForeignGateway(uint256 chainId, address foreignGateway) external onlyOwner {
         chainIdToGateway[chainId] = foreignGateway;
         lastIndex++;
         indexToChainId[lastIndex] = chainId;
@@ -48,19 +42,14 @@ contract MasterGateway is IGateway, IMasterGateway, Ownable {
 
     /// @notice Sends a message to another chain's gateway instance
     /// @param _message The message to send
-    function sendMessageToForeignGateway(
-        uint256 chainId,
-        bytes memory _message
-    ) external {
+    function sendMessageToForeignGateway(uint256 chainId, bytes memory _message) external {
         if (msg.sender != masterCrosschainGranter) revert InvalidSender();
         address foreignGateway = chainIdToGateway[chainId];
         if (foreignGateway == address(0)) revert InvalidChainId();
 
         IBridge amBridge = IBridge(amBridgeAddress);
         amBridge.requireToPassMessage(
-            foreignGateway,
-            abi.encodeCall(this.receiveMessage, (_message)),
-            amBridge.maxGasPerTx()
+            foreignGateway, abi.encodeCall(this.receiveMessage, (_message)), amBridge.maxGasPerTx()
         );
     }
 
@@ -69,7 +58,7 @@ contract MasterGateway is IGateway, IMasterGateway, Ownable {
     function receiveMessage(bytes memory _message) external {
         for (uint256 i = 1; i <= lastIndex; ++i) {
             if (msg.sender == chainIdToGateway[indexToChainId[i]]) {
-                (bool success, ) = masterCrosschainGranter.call(_message);
+                (bool success,) = masterCrosschainGranter.call(_message);
                 if (!success) revert MessageCallFailed();
                 return;
             }
