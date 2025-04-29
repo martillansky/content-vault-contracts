@@ -11,9 +11,6 @@ coverage_threshold = 90
 gas_reports = ["Vault", "ProposalVaultManager", "SchemaManager", "VaultPermissions", "VaultSignatureValidator"]
 
 
-# Etherscan/Explorer configs
-etherscan_api_key = {}
-
 [etherscan]
 10200 = { url = "https://blockscout.chiadochain.net/api", key = "dummy" }
 
