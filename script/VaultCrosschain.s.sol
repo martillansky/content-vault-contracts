@@ -21,17 +21,19 @@ contract VaultCrosschainScript is Script {
         }
 
         ForeignCrosschainGranter foreignCrosschainGranter = new ForeignCrosschainGranter();
-        address masterGatewayAddress = vm.envAddress("MASTER_GATEWAY");
-        address amBridgeAddress = vm.envAddress("FOREIGN_BRIDGE");
+        address masterGatewayAddress = vm.envAddress("MASTER_GATEWAY_ADDRESS_SEPOLIA");
+        address amBridgeAddress = vm.envAddress("FOREIGN_BRIDGE_CHIADO");
 
         ForeignGateway foreignGateway =
             new ForeignGateway(masterGatewayAddress, amBridgeAddress, address(foreignCrosschainGranter));
 
         foreignCrosschainGranter.setGateway(address(foreignGateway));
 
+        /* 
+        This tx is to be done manually on Sepolia
         MasterGateway masterGateway = MasterGateway(masterGatewayAddress);
-        uint256 foreignChainId = vm.envUint("FOREIGN_CHAIN_ID");
-        masterGateway.registerForeignGateway(foreignChainId, address(foreignGateway));
+        uint256 foreignChainId = vm.envUint("FOREIGN_CHAIN_ID_CHIADO");
+        masterGateway.registerForeignGateway(foreignChainId, address(foreignGateway)); */
 
         console2.log("ForeignCrosschainGranter deployed to", address(foreignCrosschainGranter));
         console2.log("ForeignGateway deployed to", address(foreignGateway));

@@ -16,12 +16,14 @@
         "deploy:anvil": "IS_LOCAL=true forge script script/Vault.s.sol:VaultScript --rpc-url http://127.0.0.1:8545 --broadcast",
         "anvil:call:tests": "forge script script/CallLocal.s.sol:CallLocal --rpc-url http://127.0.0.1:8545 --broadcast",
         "deploy:sepolia": "dotenv -- cross-var forge script script/Vault.s.sol:VaultScript --fork-url %RPC_URL_SEPOLIA% --broadcast",
+        "deploy:chiado": "dotenv -- cross-var forge script script/VaultCrosschain.s.sol:VaultCrosschainScript --fork-url %RPC_URL_CHIADO% --broadcast",
+        "deploy:chiado:bis": "dotenv -- cross-var forge script script/VaultCrosschain.s.sol:VaultCrosschainScript --rpc-url https://rpc.chiadochain.net --verifier blockscout --verifier-url 'https://gnosis-chiado.blockscout.com/api/' --broadcast",
         "deploy:mainnet": "dotenv -- cross-var forge script script/Vault.s.sol:VaultScript --fork-url %RPC_URL_MAINNET% --broadcast",
         "verify:sepolia": "dotenv -- cross-var forge verify-contract --chain-id 11155111 %VAULT_ADDRESS_SEPOLIA% src/Vault.sol:Vault --etherscan-api-key %ETHERSCAN_API_KEY%",
         "verify:mainnet": "dotenv -- cross-var forge verify-contract --chain-id 1 %VAULT_ADDRESS_MAINNET% script/Vault.s.sol:Vault --etherscan-api-key %ETHERSCAN_API_KEY%",
         "verify:sepolia:blockscout": "dotenv -- cross-var forge verify-contract --chain-id 11155111 --verifier blockscout --verifier-url https://eth-sepolia.blockscout.com/api/ %VAULT_ADDRESS_SEPOLIA% src/Vault.sol:Vault",
         "executable-script": "chmod +x script/verify-all.sh",
-        "verify:sepolia:all": "dotenv -- ./script/verify-all.sh"
+        "verify:testnets:all": "dotenv -- ./script/verify-all.sh"
     },
     "dependencies": {
         "cross-var": "^1.1.0",

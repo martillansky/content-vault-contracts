@@ -69,10 +69,30 @@ contract MasterCrosschainGranter is ICrosschainGranter, IMasterCrosschainGranter
                     tokenContract
                 )
             );
+            emit VaultFromProposalRegistrationRequested(proposalId, tokenContract);
         } else {
             proposalIdToVault[proposalId] = ProposalMetadata({proposalId: proposalId, tokenContract: tokenContract});
             emit VaultFromProposalRegisteredOnHomeChain(proposalId, tokenContract);
         }
+    }
+
+    /// @notice Upgrades the permission of a vault from a proposal
+    /// on the same chain only if the user has enough balance of the
+    /// proposal's strategy token. Will revert if:
+    /// - the user doesn't have read permission on the vault from proposal
+    /// - the vault from proposal doesn't exist
+    /// - the user doesn't have enough balance of the proposal's strategy token
+    /// @param proposalId The id of the proposal
+    /// @param user The user to upgrade the permission for
+    function upgradePermissionVaultFromProposalNativeToken(bytes32 proposalId, address user) external {
+        ProposalMetadata memory proposalMetadata = proposalIdToVault[proposalId];
+        address tokenContract = proposalMetadata.tokenContract;
+        if (tokenContract == address(0)) revert VaultFromProposalDoesNotExist();
+        if (ERC20TokenProposalLib.balanceOf(tokenContract, user) == 0) {
+            revert NotEnoughBalance();
+        }
+        ProposalVaultManager(proposalVaultManager).upgradePermissionVaultFromProposal(proposalId, user);
+        emit VaultFromProposalPermissionUpgraded(proposalId, user);
     }
 
     // ----------------------------------------------------
@@ -80,18 +100,12 @@ contract MasterCrosschainGranter is ICrosschainGranter, IMasterCrosschainGranter
     // ----------------------------------------------------
 
     /// @notice Upgrades the permission of a vault from a proposal
-    /// on the same chain only if the user has enough balance of the
-    /// proposal's strategy token
+    /// requested from a foreign chain (token's home chain) where
+    /// the user has enough balance of the proposal's strategy token
     /// @param proposalId The id of the proposal
     /// @param user The user to upgrade the permission for
     function upgradePermissionVaultFromProposal(bytes32 proposalId, address user) external {
         if (msg.sender != masterGateway) revert InvalidSender();
-        ProposalMetadata memory proposalMetadata = proposalIdToVault[proposalId];
-        address tokenContract = proposalMetadata.tokenContract;
-        if (tokenContract == address(0)) revert VaultFromProposalDoesNotExist();
-        if (ERC20TokenProposalLib.balanceOf(tokenContract, user) == 0) {
-            revert NotEnoughBalance();
-        }
         ProposalVaultManager(proposalVaultManager).upgradePermissionVaultFromProposal(proposalId, user);
         emit VaultFromProposalPermissionUpgraded(proposalId, user);
     }

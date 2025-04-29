@@ -11,4 +11,11 @@ coverage_threshold = 90
 gas_reports = ["Vault", "ProposalVaultManager", "SchemaManager", "VaultPermissions", "VaultSignatureValidator"]
 
 
+# Etherscan/Explorer configs
+etherscan_api_key = {}
+
+[etherscan]
+10200 = { url = "https://blockscout.chiadochain.net/api", key = "dummy" }
+
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

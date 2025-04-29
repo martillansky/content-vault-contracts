@@ -8,9 +8,6 @@ interface ICrosschainGranter {
         address tokenContract;
     }
 
-    // Events
-    event VaultFromProposalRegisteredOnHomeChain(bytes32 indexed proposalId, address indexed tokenContract);
-
     /// @notice Error thrown when the token contract is invalid
     error InvalidTokenContract();
     /// @notice Error thrown when the token address is invalid

@@ -62,6 +62,6 @@ contract ForeignCrosschainGranter is ICrosschainGranter, IForeignCrosschainGrant
             revert ProposalAlreadyRegistered();
         }
         proposalIdToVault[proposalId] = ProposalMetadata({proposalId: proposalId, tokenContract: tokenContract});
-        emit VaultFromProposalRegisteredOnHomeChain(proposalId, tokenContract);
+        emit VaultFromProposalRegisteredOnForeignChain(proposalId, tokenContract);
     }
 }

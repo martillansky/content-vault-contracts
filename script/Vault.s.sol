@@ -28,7 +28,7 @@ contract VaultScript is Script {
         vault.setProposalVaultManager(address(proposalVaultManager));
         MasterCrosschainGranter masterCrosschainGranter = new MasterCrosschainGranter(address(proposalVaultManager));
         proposalVaultManager.setVaultMasterCrosschainGranter(address(masterCrosschainGranter));
-        address amBridgeAddress = vm.envAddress("MAINNET_BRIDGE");
+        address amBridgeAddress = vm.envAddress("HOME_BRIDGE_SEPOLIA");
         MasterGateway masterGateway = new MasterGateway(amBridgeAddress, address(masterCrosschainGranter));
         masterCrosschainGranter.setGateway(address(masterGateway));
 
