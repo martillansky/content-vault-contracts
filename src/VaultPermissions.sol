@@ -33,16 +33,20 @@ abstract contract VaultPermissions is IVaultErrors, IVaultPermissions, ERC1155 {
 
     /// @notice Returns the read permission
     /// @return The read permission
-    /// @custom:error NotProposalVaultManager if the caller is not the proposal vault manager
-    function getPermissionRead() external view onlyProposalVaultManager returns (uint8) {
+    function getPermissionRead() external pure returns (uint8) {
         return VaultPermissionsLib.PERMISSION_READ;
     }
 
     /// @notice Returns the write permission
     /// @return The write permission
-    /// @custom:error NotProposalVaultManager if the caller is not the proposal vault manager
-    function getPermissionWrite() external view onlyProposalVaultManager returns (uint8) {
+    function getPermissionWrite() external pure returns (uint8) {
         return VaultPermissionsLib.PERMISSION_WRITE;
+    }
+
+    /// @notice Returns the none permission
+    /// @return The none permission
+    function getPermissionNone() external pure returns (uint8) {
+        return VaultPermissionsLib.PERMISSION_NONE;
     }
 
     /// @notice Returns true if the user has read permission for the vault

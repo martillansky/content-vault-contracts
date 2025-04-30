@@ -70,7 +70,6 @@ contract MasterGateway is IGateway, IMasterGateway, Ownable {
     /// @param chainId The chainId of the foreign chain
     /// @return The address of the foreign chain's gateway instance
     function getGateway(uint256 chainId) external view returns (address) {
-        if (msg.sender != masterCrosschainGranter) revert InvalidSender();
         return chainIdToGateway[chainId];
     }
 }

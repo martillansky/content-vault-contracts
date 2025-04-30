@@ -9,8 +9,9 @@ interface IVaultPermissions {
     function setPermissionNone(uint256 tokenId, address user) external;
     function setPermissionRead(uint256 tokenId, address user) external;
     function setPermissionWrite(uint256 tokenId, address user) external;
-    function getPermissionRead() external view returns (uint8);
-    function getPermissionWrite() external view returns (uint8);
+    function getPermissionRead() external pure returns (uint8);
+    function getPermissionWrite() external pure returns (uint8);
+    function getPermissionNone() external pure returns (uint8);
     function isPermissionVaultRead(uint256 tokenId, address user) external view returns (bool);
     function isPermissionVaultWrite(uint256 tokenId, address user) external view returns (bool);
     function hasGrantedPermission(uint256 tokenId, address user) external view returns (bool);

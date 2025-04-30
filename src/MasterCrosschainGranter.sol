@@ -61,7 +61,7 @@ contract MasterCrosschainGranter is ICrosschainGranter, IMasterCrosschainGranter
         if (chainId != thisChainId) {
             address gateway = IMasterGateway(masterGateway).getGateway(chainId);
             if (gateway == address(0)) revert GatewayDoesNotExist();
-            IMasterGateway(gateway).sendMessageToForeignGateway(
+            IMasterGateway(masterGateway).sendMessageToForeignGateway(
                 chainId,
                 abi.encodeWithSelector(
                     IForeignCrosschainGranter.registerVaultFromProposalOnTokenHomeChain.selector,
