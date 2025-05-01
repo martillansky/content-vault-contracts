@@ -35,7 +35,7 @@ contract ForeignGateway is IGateway, IForeignGateway, Ownable {
         if (msg.sender != foreignCrosschainGranter) revert InvalidSender();
         IBridge amBridge = IBridge(amBridgeAddress);
         amBridge.requireToPassMessage(
-            masterGateway, abi.encodeCall(this.receiveMessage, (_message)), amBridge.maxGasPerTx()
+            masterGateway, abi.encodeCall(IGateway(masterGateway).receiveMessage, (_message)), amBridge.maxGasPerTx()
         );
     }
 

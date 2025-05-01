@@ -49,7 +49,7 @@ contract MasterGateway is IGateway, IMasterGateway, Ownable {
 
         IBridge amBridge = IBridge(amBridgeAddress);
         amBridge.requireToPassMessage(
-            foreignGateway, abi.encodeCall(this.receiveMessage, (_message)), amBridge.maxGasPerTx()
+            foreignGateway, abi.encodeCall(IGateway(foreignGateway).receiveMessage, (_message)), amBridge.maxGasPerTx()
         );
     }
 

@@ -111,7 +111,7 @@ contract ProposalVaultManager is Ownable, IVaultErrors {
         //      -- Permission is set to write through upgradePermissionVaultFromProposal
         //      called by the master crosschain granter(from chainId)
         //      after verifying positive balance of the token contract
-        vaultPermissions.setPermissionRead(newTokenId, msg.sender);
+        vaultPermissions.setPermissionRead(newTokenId, user);
 
         emit VaultFromProposalCreated(
             newTokenId,
@@ -122,7 +122,7 @@ contract ProposalVaultManager is Ownable, IVaultErrors {
             tokenContract, */
             ISchemaManager(vaultCore.schemaManager()).getSchemaFromVault(newTokenId)
         );
-        emit VaultFromProposalPinned(msg.sender, newTokenId, vaultPermissions.getPermissionRead());
+        emit VaultFromProposalPinned(user, newTokenId, vaultPermissions.getPermissionRead());
     }
 
     /// @notice Pins a vault from a proposal to the caller
