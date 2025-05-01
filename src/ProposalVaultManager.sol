@@ -118,8 +118,6 @@ contract ProposalVaultManager is Ownable, IVaultErrors {
             proposalId,
             name,
             description,
-            /* chainId,
-            tokenContract, */
             ISchemaManager(vaultCore.schemaManager()).getSchemaFromVault(newTokenId)
         );
         emit VaultFromProposalPinned(user, newTokenId, vaultPermissions.getPermissionRead());

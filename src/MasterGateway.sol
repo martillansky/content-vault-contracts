@@ -49,15 +49,18 @@ contract MasterGateway is IGateway, IMasterGateway, Ownable {
 
         IBridge amBridge = IBridge(amBridgeAddress);
         amBridge.requireToPassMessage(
-            foreignGateway, abi.encodeCall(IGateway(foreignGateway).receiveMessage, (_message)), amBridge.maxGasPerTx()
+            foreignGateway, abi.encodeWithSelector(IGateway.receiveMessage.selector, _message), amBridge.maxGasPerTx()
         );
     }
 
     /// @notice Receives a message from another chain's gateway instance
     /// @param _message The message to receive
     function receiveMessage(bytes memory _message) external {
+        if (msg.sender != amBridgeAddress) revert InvalidSender();
+        address sender = IBridge(amBridgeAddress).messageSender();
         for (uint256 i = 1; i <= lastIndex; ++i) {
-            if (msg.sender == chainIdToGateway[indexToChainId[i]]) {
+            uint256 chainId = indexToChainId[i];
+            if (sender == chainIdToGateway[chainId]) {
                 (bool success,) = masterCrosschainGranter.call(_message);
                 if (!success) revert MessageCallFailed();
                 return;

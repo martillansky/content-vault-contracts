@@ -35,14 +35,17 @@ contract ForeignGateway is IGateway, IForeignGateway, Ownable {
         if (msg.sender != foreignCrosschainGranter) revert InvalidSender();
         IBridge amBridge = IBridge(amBridgeAddress);
         amBridge.requireToPassMessage(
-            masterGateway, abi.encodeCall(IGateway(masterGateway).receiveMessage, (_message)), amBridge.maxGasPerTx()
+            masterGateway, abi.encodeWithSelector(IGateway.receiveMessage.selector, _message), amBridge.maxGasPerTx()
         );
     }
 
     /// @notice Receives a message from another chain's gateway instance
     /// @param _message The message to receive
     function receiveMessage(bytes memory _message) external {
-        if (msg.sender != masterGateway) revert InvalidSender();
+        if (msg.sender != amBridgeAddress) revert InvalidSender();
+        if (IBridge(amBridgeAddress).messageSender() != masterGateway) {
+            revert InvalidSender();
+        }
         (bool success,) = foreignCrosschainGranter.call(_message);
         if (!success) revert MessageCallFailed();
     }
