@@ -8,7 +8,8 @@ coverage = true
 coverage_threshold = 90
 
 # Gas reports
-gas_reports = ["Vault", "ProposalVaultManager", "SchemaManager", "VaultPermissions", "VaultSignatureValidator"]
+report_gas = true
+gas_report = ["Vault", "ProposalVaultManager", "SchemaManager", "VaultPermissions", "VaultSignatureValidator", "MasterCrosschainGranter", "MasterGateway", "ForeignCrosschainGranter", "ForeignGateway"]
 
 
 [etherscan]

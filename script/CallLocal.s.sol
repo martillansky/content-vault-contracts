@@ -78,7 +78,7 @@ contract CallLocal is Script {
         console2.log("Has permission write:", vault.isPermissionVaultWrite(2, wallet0));
 
         console2.log("Has permission wallet1 to 2:", vault.hasGrantedPermission(2, wallet1));
-        proposalVaultManager.pinVaultFromProposal(proposalId, wallet1);
+        //proposalVaultManager.pinVaultFromProposal(proposalId, wallet1);
         console2.log("Has permission wallet1 to 2:", vault.hasGrantedPermission(2, wallet1));
         console2.log("Has permission read:", vault.isPermissionVaultRead(2, wallet0));
 
@@ -90,7 +90,7 @@ contract CallLocal is Script {
 
         console2.log("Has permission read:", vault.isPermissionVaultRead(2, wallet0));
         console2.log("Has permission write:", vault.isPermissionVaultWrite(2, wallet0));
-        proposalVaultManager.unpinVaultFromProposal(proposalId, wallet0);
+        //proposalVaultManager.unpinVaultFromProposal(proposalId, wallet0);
         console2.log("Has permission wallet0 to 2:", vault.hasGrantedPermission(2, wallet0));
         vm.stopBroadcast();
     }

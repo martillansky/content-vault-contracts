@@ -40,7 +40,13 @@ contract ProposalVaultManager is Ownable, IVaultErrors {
     /// @param description The description of the vault
     /// @param schemaCID The CID of the schema used for the vault
     event VaultFromProposalCreated(
-        uint256 indexed tokenId, bytes32 indexed proposalId, string name, string description, string schemaCID
+        uint256 indexed tokenId,
+        bytes32 indexed proposalId,
+        string name,
+        string description,
+        string schemaCID,
+        uint256 chainId,
+        address tokenContract
     );
 
     /// @notice Emitted when a vault is pinned to a user
@@ -90,10 +96,14 @@ contract ProposalVaultManager is Ownable, IVaultErrors {
     /// @param proposalId The proposalId of the vault
     /// @param name The name of the vault
     /// @param description The description of the vault
-    function createVaultFromProposal(bytes32 proposalId, string memory name, string memory description, address user)
-        external
-        onlyVaultMasterCrosschainGranter
-    {
+    function createVaultFromProposal(
+        bytes32 proposalId,
+        string memory name,
+        string memory description,
+        uint256 chainId,
+        address tokenContract,
+        address user
+    ) external onlyVaultMasterCrosschainGranter {
         uint256 lastTokenId = vaultCore.getLastTokenId();
 
         // As it might revert, it is done before incrementing lastTokenId
@@ -118,7 +128,9 @@ contract ProposalVaultManager is Ownable, IVaultErrors {
             proposalId,
             name,
             description,
-            ISchemaManager(vaultCore.schemaManager()).getSchemaFromVault(newTokenId)
+            ISchemaManager(vaultCore.schemaManager()).getSchemaFromVault(newTokenId),
+            chainId,
+            tokenContract
         );
         emit VaultFromProposalPinned(user, newTokenId, vaultPermissions.getPermissionRead());
     }
@@ -126,48 +138,41 @@ contract ProposalVaultManager is Ownable, IVaultErrors {
     /// @notice Pins a vault from a proposal to the caller
     /// @dev Emits a VaultFromProposalPinned event
     /// @param proposalId The proposalId of the vault
-    /// @param user The address of the user to pin the vault to
     /// @custom:error VaultDoesNotExist if the vault doesn't exist
-    /// @custom:error ZeroAddress if the user address is zero
     /// @custom:error VaultAlreadyPinned if the vault is already pinned, user already has permission
-    function pinVaultFromProposal(bytes32 proposalId, address user) external onlyVaultMasterCrosschainGranter {
+    function pinVaultFromProposal(bytes32 proposalId) public {
         uint256 tokenId = proposalIdToVault[proposalId];
         if (tokenId == 0) revert VaultDoesNotExist();
 
-        if (user == address(0)) revert ZeroAddress();
-        if (vaultAccessControl.getVaultBalance(user, tokenId) > 0) {
+        if (vaultAccessControl.getVaultBalance(msg.sender, tokenId) > 0) {
             revert VaultAlreadyPinned();
         }
 
-        vaultAccessControl.mintVaultAccess(user, tokenId);
-        vaultPermissions.setPermissionRead(tokenId, user);
-        emit VaultFromProposalPinned(user, tokenId, vaultPermissions.getPermissionRead());
+        vaultAccessControl.mintVaultAccess(msg.sender, tokenId);
+        vaultPermissions.setPermissionRead(tokenId, msg.sender);
+        emit VaultFromProposalPinned(msg.sender, tokenId, vaultPermissions.getPermissionRead());
     }
 
     /// @notice Unpins a vault from proposal to the caller
     /// @dev Emits a VaultFromProposalUnpinned event
     /// @param proposalId The proposalId of the vault
     /// @custom:error VaultDoesNotExist if the vault doesn't exist
-    /// @custom:error ZeroAddress if the user address is zero
     /// @custom:error NoAccessToRevoke if the user has no access to revoke
-    /// @custom:error NotVaultOwner if the caller is not the master crosschain granter
-    function unpinVaultFromProposal(bytes32 proposalId, address user) external onlyVaultMasterCrosschainGranter {
+    function unpinVaultFromProposal(bytes32 proposalId) public {
         uint256 tokenId = proposalIdToVault[proposalId];
         if (tokenId == 0) revert VaultDoesNotExist();
 
-        if (user == address(0)) revert ZeroAddress();
-
-        if (!vaultPermissions.hasGrantedPermission(tokenId, user)) {
+        if (!vaultPermissions.hasGrantedPermission(tokenId, msg.sender)) {
             revert NoAccessToRevoke();
         }
-        if (vaultAccessControl.getVaultBalance(user, tokenId) == 0) {
-            vaultPermissions.setPermissionNone(tokenId, user);
+        if (vaultAccessControl.getVaultBalance(msg.sender, tokenId) == 0) {
+            vaultPermissions.setPermissionNone(tokenId, msg.sender);
             revert NoAccessToRevoke();
         }
-        vaultPermissions.setPermissionNone(tokenId, user);
-        vaultAccessControl.burnVaultAccess(user, tokenId);
+        vaultPermissions.setPermissionNone(tokenId, msg.sender);
+        vaultAccessControl.burnVaultAccess(msg.sender, tokenId);
 
-        emit VaultFromProposalUnpinned(user, tokenId);
+        emit VaultFromProposalUnpinned(msg.sender, tokenId);
     }
 
     /// @notice Upgrades a user's permission level for a vault

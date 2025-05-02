@@ -13,6 +13,7 @@
         "fmt": "forge fmt",
         "fmt:check": "forge fmt --check",
         "clean": "forge clean",
+        "test:gas:price": "dotenv -- cross-var cast gas-price --rpc-url %RPC_URL_SEPOLIA%",
         "deploy:anvil": "IS_LOCAL=true forge script script/Vault.s.sol:VaultScript --rpc-url http://127.0.0.1:8545 --broadcast",
         "anvil:call:tests": "forge script script/CallLocal.s.sol:CallLocal --rpc-url http://127.0.0.1:8545 --broadcast",
         "deploy:sepolia": "dotenv -- cross-var forge script script/Vault.s.sol:VaultScript --fork-url %RPC_URL_SEPOLIA% --broadcast",

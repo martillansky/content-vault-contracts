@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Elastic-2.0
 pragma solidity ^0.8.22;
 
-import {ProposalVaultManager} from "./ProposalVaultManager.sol";
 import {ERC20TokenProposalLib} from "./libs/ERC20TokenProposalLib.sol";
 import {ICrosschainGranter} from "./interfaces/ICrosschainGranter.sol";
 import {IMasterGateway} from "./interfaces/IMasterGateway.sol";
 import {IMasterCrosschainGranter} from "./interfaces/IMasterCrosschainGranter.sol";
 import {IForeignCrosschainGranter} from "./interfaces/IForeignCrosschainGranter.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IProposalVaultManager} from "./interfaces/IProposalVaultManager.sol";
 
 contract MasterCrosschainGranter is ICrosschainGranter, IMasterCrosschainGranter, Ownable {
     /// @notice The address of the master gateway
@@ -56,7 +56,9 @@ contract MasterCrosschainGranter is ICrosschainGranter, IMasterCrosschainGranter
             }
         }
 
-        ProposalVaultManager(proposalVaultManager).createVaultFromProposal(proposalId, name, description, msg.sender);
+        IProposalVaultManager(proposalVaultManager).createVaultFromProposal(
+            proposalId, name, description, chainId, tokenContract, msg.sender
+        );
 
         if (chainId != thisChainId) {
             address gateway = IMasterGateway(masterGateway).getGateway(chainId);
@@ -91,7 +93,7 @@ contract MasterCrosschainGranter is ICrosschainGranter, IMasterCrosschainGranter
         if (ERC20TokenProposalLib.balanceOf(tokenContract, user) == 0) {
             revert NotEnoughBalance();
         }
-        ProposalVaultManager(proposalVaultManager).upgradePermissionVaultFromProposal(proposalId, user);
+        IProposalVaultManager(proposalVaultManager).upgradePermissionVaultFromProposal(proposalId, user);
         emit VaultFromProposalPermissionUpgraded(proposalId, user);
     }
 
@@ -106,7 +108,7 @@ contract MasterCrosschainGranter is ICrosschainGranter, IMasterCrosschainGranter
     /// @param user The user to upgrade the permission for
     function upgradePermissionVaultFromProposal(bytes32 proposalId, address user) external {
         if (msg.sender != masterGateway) revert InvalidSender();
-        ProposalVaultManager(proposalVaultManager).upgradePermissionVaultFromProposal(proposalId, user);
+        IProposalVaultManager(proposalVaultManager).upgradePermissionVaultFromProposal(proposalId, user);
         emit VaultFromProposalPermissionUpgraded(proposalId, user);
     }
 }
