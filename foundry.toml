@@ -7,4 +7,13 @@ libs = ["lib"]
 coverage = true
 coverage_threshold = 90
 
+# Gas reports
+report_gas = true
+gas_report = ["Vault", "ProposalVaultManager", "SchemaManager", "VaultPermissions", "VaultSignatureValidator", "MasterCrosschainGranter", "MasterGateway", "ForeignCrosschainGranter", "ForeignGateway"]
+
+
+[etherscan]
+10200 = { url = "https://blockscout.chiadochain.net/api", key = "dummy" }
+
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
