@@ -58,15 +58,15 @@ Libélula is a tokenized, permissioned content vault protocol built on **ERC-115
 
 ## 🧪 Testnet Deployments
 
-| Contract                 | Sepolia Testnet | Chiado Testnet (Gnosis) |
-| ------------------------ | --------------- | ----------------------- |
-| Vault                    | `0x...`         | `—`                     |
-| SchemaManager            | `0x...`         | `—`                     |
-| ProposalVaultManager     | `0x...`         | `—`                     |
-| MasterCrosschainGranter  | `0x...`         | `—`                     |
-| MasterGateway            | `0x...`         | `—`                     |
-| ForeignCrosschainGranter | `—`             | `0x...`                 |
-| ForeignGateway           | `—`             | `0x...`                 |
+| Contract                 | Sepolia Testnet                                                                                                                 | Chiado Testnet (Gnosis)                                                                                                                 |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Vault                    | [`0xA4556112a1847F4B8bfc9D2B55F34A2638f4188E`](https://sepolia.etherscan.io/address/0xA4556112a1847F4B8bfc9D2B55F34A2638f4188E) | `—`                                                                                                                                     |
+| SchemaManager            | [`0x1cB1c91C8cF2E12Ea2BeEb5D952FF29123f04Caf`](https://sepolia.etherscan.io/address/0x1cB1c91C8cF2E12Ea2BeEb5D952FF29123f04Caf) | `—`                                                                                                                                     |
+| ProposalVaultManager     | [`0x16D8fec0c6D2831a0F54BB468191587f6F2cd8Bd`](https://sepolia.etherscan.io/address/0x16D8fec0c6D2831a0F54BB468191587f6F2cd8Bd) | `—`                                                                                                                                     |
+| MasterCrosschainGranter  | [`0x3ee5516B43d02cAD3aE2859892aB7c8A5648B819`](https://sepolia.etherscan.io/address/0x3ee5516B43d02cAD3aE2859892aB7c8A5648B819) | `—`                                                                                                                                     |
+| MasterGateway            | [`0x46843BAa2cc929088d475eE7F10426B50BAE2E6b`](https://sepolia.etherscan.io/address/0x46843baa2cc929088d475ee7f10426b50bae2e6b) | `—`                                                                                                                                     |
+| ForeignCrosschainGranter | `—`                                                                                                                             | [`0xF184708c885d00a8b1C0Ab5288f2ee9f7a9d5531`](https://gnosis-chiado.blockscout.com/address/0xF184708c885d00a8b1C0Ab5288f2ee9f7a9d5531) |
+| ForeignGateway           | `—`                                                                                                                             | [`0x00f450cB1CAc375E4257E22AD30Faf08d46f0f85`](https://gnosis-chiado.blockscout.com/address/0x00f450cB1CAc375E4257E22AD30Faf08d46f0f85) |
 
 ---
 
